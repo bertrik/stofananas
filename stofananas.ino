@@ -5,6 +5,7 @@
 #include <WiFiManager.h>
 #include "ESP8266HTTPClient.h"
 #include <FastLED.h>
+#include "ArduinoJson.h"
 
 #include "print.h"
 #include "cmdproc.h"
@@ -58,17 +59,39 @@ static int do_get(int argc, char *argv[])
     WiFiClient wifiClient;
     HTTPClient httpClient;
 
+    // perform the GET
     print("HTTP begin ...");
     String url = "http://api.luftdaten.info/v1/sensor/12246/";
     httpClient.begin(wifiClient, url);
     print("GET ...");
     int res = httpClient.sendRequest("GET");
     print("code %d\n", res);
+    String json = "";
     if (res == HTTP_CODE_OK) {
         print("Response:");
-        Serial.println(httpClient.getString());
+        json = httpClient.getString();
     }
     httpClient.end();
+
+    Serial.print("JSON: ");
+    Serial.println(json);
+
+    // decode the JSON
+    DynamicJsonDocument doc(4096);
+    deserializeJson(doc, json);
+    JsonArray root = doc.as<JsonArray>();
+    for (JsonObject meas:root) {
+        JsonArray sensordatavalues = meas["sensordatavalues"];
+        for (JsonObject sensordatavalue:sensordatavalues) {
+            const char *value_type = sensordatavalue["value_type"];
+            const char *value = sensordatavalue["value"];
+            Serial.print("value_type: ");
+            Serial.println(String(value_type));
+            Serial.print("value: ");
+            Serial.println(String(value));
+        }
+    }
+
     return 0;
 }
 
@@ -86,9 +109,11 @@ static int do_help(int argc, char *argv[])
 
 void loop(void)
 {
-    // show led color
-    int idx = (millis() / 1000) % 7;
-    led = table[idx];
+    // cycle intensity and hue
+    unsigned long ms = millis();
+    int hue = (ms / 10) % 256;
+    int intensity = (1.0 + cos(ms / 1000.0)) * 127;
+    led.setHSV(hue, 128, intensity);
     FastLED.show();
 
     // parse command line
