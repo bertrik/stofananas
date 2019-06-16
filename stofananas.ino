@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
@@ -54,6 +55,42 @@ static void show_help(const cmd_t * cmds)
 
 static int do_help(int argc, char *argv[]);
 
+static bool decode_json(String json, const char *item, float *value)
+{
+    static DynamicJsonDocument doc(4096);
+    deserializeJson(doc, json);
+
+    int meas_num = 0;
+    float meas_sum = 0.0;
+
+    // iterate over all measurements
+    JsonArray root = doc.as < JsonArray > ();
+    for (JsonObject meas:root) {
+        JsonArray sensordatavalues = meas["sensordatavalues"];
+
+        // iterate over all sensor data values (P0, P1, P2, etc)
+        for (JsonObject sensordatavalue:sensordatavalues) {
+            const char *value_type = sensordatavalue["value_type"];
+            const char *value = sensordatavalue["value"];
+            Serial.print("value_type: ");
+            Serial.println(String(value_type));
+            Serial.print("value: ");
+            Serial.println(String(value));
+            if (strcmp(item, value_type) == 0) {
+                meas_num++;
+                meas_sum += strtof(value, NULL);
+            }
+        }
+    }
+
+    if (meas_num > 0) {
+        *value = meas_sum / meas_num;
+        return true;
+    }
+
+    return false;
+}
+
 static int do_get(int argc, char *argv[])
 {
     WiFiClient wifiClient;
@@ -76,20 +113,9 @@ static int do_get(int argc, char *argv[])
     Serial.print("JSON: ");
     Serial.println(json);
 
-    // decode the JSON
-    DynamicJsonDocument doc(4096);
-    deserializeJson(doc, json);
-    JsonArray root = doc.as<JsonArray>();
-    for (JsonObject meas:root) {
-        JsonArray sensordatavalues = meas["sensordatavalues"];
-        for (JsonObject sensordatavalue:sensordatavalues) {
-            const char *value_type = sensordatavalue["value_type"];
-            const char *value = sensordatavalue["value"];
-            Serial.print("value_type: ");
-            Serial.println(String(value_type));
-            Serial.print("value: ");
-            Serial.println(String(value));
-        }
+    float pm = 0.0;
+    if (decode_json(json, "P1", &pm)) {
+        Serial.printf("Particulate matter: %f\n", pm);
     }
 
     return 0;
