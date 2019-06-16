@@ -26,6 +26,11 @@ typedef struct {
     uint32_t magic;
 } savedata_t;
 
+typedef struct {
+    int pm;
+    CRGB color;
+} pmlevel_t;
+
 static savedata_t savedata;
 static char esp_id[16];
 
@@ -36,6 +41,16 @@ static WiFiClient wifiClient;
 static CRGB led;
 static char line[120];
 
+static const pmlevel_t pmlevels[] = {
+    { 0, CRGB::Grey },
+    { 25, CRGB::Cyan },
+    { 50, CRGB::Yellow },
+    { 100, CRGB::Red },
+    { 200, CRGB::Purple },
+    // terminating entry
+    { -1, CRGB::Purple }
+};
+
 static void wifiManagerCallback(void)
 {
     strcpy(savedata.luftdatenid, luftdatenIdParam.getValue());
@@ -45,7 +60,6 @@ static void wifiManagerCallback(void)
     EEPROM.put(0, savedata);
     EEPROM.commit();
 }
-
 
 void setup(void)
 {
@@ -59,11 +73,11 @@ void setup(void)
 
     // get ESP id
     sprintf(esp_id, "%08X", ESP.getChipId());
-    print("ESP ID: %s", esp_id);
+    print("ESP ID: %s\n", esp_id);
 
     // config led
     FastLED.addLeds < PL9823, DATA_PIN > (&led, 1);
-    led = CRGB::Black;
+    led = CRGB::Yellow;
     FastLED.show();
 
     // connect to wifi
@@ -76,11 +90,11 @@ void setup(void)
     } else {
         wifiManager.startConfigPortal("ESP-STOFANANAS");
     }
-}
 
-static CRGB table[8] = {
-    CRGB::Black, CRGB::Blue, CRGB::Cyan, CRGB::Green, CRGB::Yellow, CRGB::Red, CRGB::Purple
-};
+    // turn off LED
+    led = CRGB::Black;
+    FastLED.show();
+}
 
 static void show_help(const cmd_t * cmds)
 {
@@ -123,28 +137,31 @@ static bool decode_json(String json, const char *item, float *value)
     return false;
 }
 
-static int do_get(int argc, char *argv[])
+static String fetch_json(const char *luftdatenid)
 {
     char url[64];
-    WiFiClient wifiClient;
-    HTTPClient httpClient;
+    snprintf(url, sizeof(url), "http://api.luftdaten.info/v1/sensor/%s/", luftdatenid);
 
     // perform the GET
-    print("HTTP begin ...");
-    snprintf(url, sizeof(url), "http://api.luftdaten.info/v1/sensor/%s/", savedata.luftdatenid);
     print("Executing GET to %s...", url);
+    HTTPClient httpClient;
+    WiFiClient wifiClient;
     httpClient.begin(wifiClient, url);
     int res = httpClient.sendRequest("GET");
-    print("code %d\n", res);
-    String json = "";
-    if (res == HTTP_CODE_OK) {
-        json = httpClient.getString();
-    }
+    print("%d\n", res);
+    String json = (res == HTTP_CODE_OK) ? httpClient.getString() : "";
     httpClient.end();
+    return json;
+}
 
+static int do_get(int argc, char *argv[])
+{
+    // perform the GET
+    String json = fetch_json(savedata.luftdatenid);
     print("JSON: ");
     Serial.println(json);
 
+    // decode it
     float pm = 0.0;
     if (decode_json(json, "P1", &pm)) {
         print("PM average: %f\n", pm);
@@ -161,9 +178,38 @@ static int do_config(int argc, char *argv[])
         EEPROM.put(0, savedata);
         EEPROM.commit();
     }
-    
+
     print("config.luftdatenid = %s\n", savedata.luftdatenid);
     print("config.magic       = %08X\n", savedata.magic);
+
+    return 0;
+}
+
+static CRGB interpolate(float pm, const pmlevel_t table[])
+{
+    CRGB color;
+    for (const pmlevel_t * pmlevel = table; pmlevel->pm >= 0; pmlevel++) {
+        const pmlevel_t *next = pmlevel + 1;
+        color = pmlevel->color;
+        if ((pm >= pmlevel->pm) && (pm < next->pm)) {
+            uint16_t frac = 65536 * (pm - pmlevel->pm) / (next->pm - pmlevel->pm);
+            return color.lerp16(next->color, frac);
+        }
+    }
+    return color;
+}
+
+static int do_pm(int argc, char *argv[])
+{
+    if (argc < 2) {
+        return -1;
+    }
+
+    float pm = atoi(argv[1]);
+    CRGB color = interpolate(pm, pmlevels);
+    print("pm=%d => color = #%02X%02X%02X\n", (int) pm, color.r, color.g, color.b);
+    led = color;
+    FastLED.show();
 
     return 0;
 }
@@ -172,6 +218,7 @@ const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "Do HTTP GET" },
     { "config", do_config, "Show/clear config" },
+    { "pm", do_pm, "Simulate PM value" },
     { NULL, NULL, NULL }
 };
 
@@ -183,12 +230,21 @@ static int do_help(int argc, char *argv[])
 
 void loop(void)
 {
-    // cycle intensity and hue
-    unsigned long ms = millis();
-    int hue = (ms / 10) % 256;
-    int intensity = (1.0 + cos(ms / 1000.0)) * 127;
-    led.setHSV(hue, 128, intensity);
-    FastLED.show();
+    // fetch a new value every minute
+    static unsigned long int last_minute = -1;
+    unsigned long int ms = millis();
+    unsigned long int minute = (ms / 60000);
+    if (minute != last_minute) {
+        last_minute = minute;
+        String json = fetch_json(savedata.luftdatenid);
+        float pm;
+        if (decode_json(json, "P1", &pm)) {
+            print("PM=%f\n", pm);
+            CRGB color = interpolate(pm, pmlevels);
+            led = color;
+            FastLED.show();
+        }
+    }
 
     // parse command line
     bool haveLine = false;
@@ -216,3 +272,4 @@ void loop(void)
         print(">");
     }
 }
+
