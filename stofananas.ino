@@ -137,29 +137,32 @@ static bool decode_json(String json, const char *item, float *value)
     return false;
 }
 
-static String fetch_json(const char *luftdatenid)
+static bool fetch_json(const char *luftdatenid, String &json)
 {
     char url[64];
     snprintf(url, sizeof(url), "http://api.luftdaten.info/v1/sensor/%s/", luftdatenid);
 
     // perform the GET
-    print("Executing GET to %s...", url);
+    print("GET %s ... ", url);
     HTTPClient httpClient;
     WiFiClient wifiClient;
     httpClient.begin(wifiClient, url);
-    int res = httpClient.sendRequest("GET");
+    int res = httpClient.GET();
     print("%d\n", res);
-    String json = (res == HTTP_CODE_OK) ? httpClient.getString() : "";
+    json = httpClient.getString();
     httpClient.end();
-    return json;
+
+    return (res == HTTP_CODE_OK);
 }
 
 static int do_get(int argc, char *argv[])
 {
     // perform the GET
-    String json = fetch_json(savedata.luftdatenid);
-    print("JSON: ");
-    Serial.println(json);
+    String json;
+    if (fetch_json(savedata.luftdatenid, json)) {
+        print("JSON: ");
+        Serial.println(json);
+    }
 
     // decode it
     float pm = 0.0;
@@ -236,13 +239,11 @@ void loop(void)
     unsigned long int minute = (ms / 60000);
     if (minute != last_minute) {
         last_minute = minute;
-        String json = fetch_json(savedata.luftdatenid);
+        String json;
         float pm;
-        if (decode_json(json, "P1", &pm)) {
+        if (fetch_json(savedata.luftdatenid, json) && decode_json(json, "P1", &pm)) {
             print("PM=%f\n", pm);
             CRGB color = interpolate(pm, pmlevels);
-            led = color;
-            FastLED.show();
         }
     }
 
