@@ -39,6 +39,7 @@ static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", 
 static WiFiClient wifiClient;
 
 static CRGB led;
+static CRGB color;
 static char line[120];
 
 static const pmlevel_t pmlevels[] = {
@@ -209,10 +210,8 @@ static int do_pm(int argc, char *argv[])
     }
 
     float pm = atoi(argv[1]);
-    CRGB color = interpolate(pm, pmlevels);
+    color = interpolate(pm, pmlevels);
     print("pm=%d => color = #%02X%02X%02X\n", (int) pm, color.r, color.g, color.b);
-    led = color;
-    FastLED.show();
 
     return 0;
 }
@@ -243,9 +242,13 @@ void loop(void)
         float pm;
         if (fetch_json(savedata.luftdatenid, json) && decode_json(json, "P1", &pm)) {
             print("PM=%f\n", pm);
-            CRGB color = interpolate(pm, pmlevels);
+            color = interpolate(pm, pmlevels);
         }
     }
+
+    // show on LED
+    led = color;
+    FastLED.show();
 
     // parse command line
     bool haveLine = false;
