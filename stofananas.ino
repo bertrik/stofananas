@@ -17,7 +17,7 @@
 
 #include <Arduino.h>
 
-#define DATA_PIN    D4
+#define DATA_PIN    D3
 
 #define SAVEDATA_MAGIC  0xCAFEBABE
 
