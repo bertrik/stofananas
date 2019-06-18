@@ -28,7 +28,7 @@ typedef struct {
 
 typedef struct {
     int pm;
-    CRGB color;
+    int hue;
 } pmlevel_t;
 
 static savedata_t savedata;
@@ -39,17 +39,17 @@ static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", 
 static WiFiClient wifiClient;
 
 static CRGB led;
-static CRGB color;
+static CHSV color;
 static char line[120];
 
+// see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
 static const pmlevel_t pmlevels[] = {
-    { 0, CRGB::Grey },
-    { 25, CRGB::Cyan },
-    { 50, CRGB::Yellow },
-    { 100, CRGB::Red },
-    { 200, CRGB::Purple },
-    // terminating entry
-    { -1, CRGB::Purple }
+    { 0, 128 },     // aqua
+    { 25, 96 },     // green
+    { 50, 64 },     // yellow
+    { 100, 0 },     // red
+    { 200, -32 },   // pink
+    { -1, 0 }     // END
 };
 
 static void wifiManagerCallback(void)
@@ -189,18 +189,18 @@ static int do_config(int argc, char *argv[])
     return 0;
 }
 
-static CRGB interpolate(float pm, const pmlevel_t table[])
+static CHSV interpolate(float pm, const pmlevel_t table[])
 {
-    CRGB color;
+    int hue;
     for (const pmlevel_t * pmlevel = table; pmlevel->pm >= 0; pmlevel++) {
         const pmlevel_t *next = pmlevel + 1;
-        color = pmlevel->color;
         if ((pm >= pmlevel->pm) && (pm < next->pm)) {
-            uint16_t frac = 65536 * (pm - pmlevel->pm) / (next->pm - pmlevel->pm);
-            return color.lerp16(next->color, frac);
+            hue = map(pm, pmlevel->pm, next->pm, pmlevel->hue, next->hue);
+            break;
         }
+        hue = pmlevel->hue;
     }
-    return color;
+    return CHSV(hue, 255, 255);
 }
 
 static int do_pm(int argc, char *argv[])
@@ -211,7 +211,7 @@ static int do_pm(int argc, char *argv[])
 
     float pm = atoi(argv[1]);
     color = interpolate(pm, pmlevels);
-    print("pm=%d => color = #%02X%02X%02X\n", (int) pm, color.r, color.g, color.b);
+//    print("pm=%d => color = #%02X%02X%02X\n", (int) pm, color.r, color.g, color.b);
 
     return 0;
 }
