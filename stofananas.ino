@@ -231,14 +231,15 @@ static int do_help(int argc, char *argv[])
     return 0;
 }
 
+#define POLL_INTERVAL 300000
+
 void loop(void)
 {
-    // fetch a new value every minute
-    static unsigned long int last_minute = -1;
-    unsigned long int ms = millis();
-    unsigned long int minute = (ms / 60000);
-    if (minute != last_minute) {
-        last_minute = minute;
+    // fetch a new value every POLL_INTERVAL
+    static unsigned int period_last = -1;
+    unsigned int period = millis() / POLL_INTERVAL;
+    if (period != period_last) {
+        period_last = period;
         String json;
         float pm;
         if (fetch_json(savedata.luftdatenid, json) && decode_json(json, "P1", &pm)) {
