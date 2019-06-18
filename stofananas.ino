@@ -44,7 +44,8 @@ static char line[120];
 
 // see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
 static const pmlevel_t pmlevels[] = {
-    { 0, 128 },     // aqua
+    { 0, 160 },     // blue
+    { 12, 128 },    // aqua
     { 25, 96 },     // green
     { 50, 64 },     // yellow
     { 100, 0 },     // red
