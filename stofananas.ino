@@ -150,11 +150,12 @@ static bool fetch_json(const char *luftdatenid, String &json)
     WiFiClient wifiClient;
     httpClient.begin(wifiClient, url);
     int res = httpClient.GET();
-    print("%d\n", res);
-    json = httpClient.getString();
+    bool result = (res == HTTP_CODE_OK);
+    json = result ? httpClient.getString() : httpClient.errorToString(res);
     httpClient.end();
+    print("%d\n", res);
 
-    return (res == HTTP_CODE_OK);
+    return result;
 }
 
 static int do_get(int argc, char *argv[])
