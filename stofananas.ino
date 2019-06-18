@@ -192,7 +192,7 @@ static int do_config(int argc, char *argv[])
 
 static CHSV interpolate(float pm, const pmlevel_t table[])
 {
-    int hue;
+    int hue = 0;
     for (const pmlevel_t * pmlevel = table; pmlevel->pm >= 0; pmlevel++) {
         const pmlevel_t *next = pmlevel + 1;
         if ((pm >= pmlevel->pm) && (pm < next->pm)) {
