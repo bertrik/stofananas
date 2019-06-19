@@ -36,7 +36,6 @@ static char esp_id[16];
 
 static WiFiManager wifiManager;
 static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
-static WiFiClient wifiClient;
 
 static CRGB led;
 static CHSV color;
@@ -217,11 +216,48 @@ static int do_pm(int argc, char *argv[])
     return 0;
 }
 
+static int do_geolocate(int argc, char *argv[])
+{
+    // scan for networks
+    Serial.print("Scanning...");
+    int n = WiFi.scanNetworks();
+    Serial.printf("%d networks found\n", n);
+
+    // create JSON request
+    static DynamicJsonDocument doc(4096);
+    doc["considerIp"] = "true";
+    JsonArray aps = doc.createNestedArray("wifiAccessPoints");
+    for (int i = 0; i < n; i++) {
+        JsonObject ap = aps.createNestedObject();
+        ap["macAddress"] = WiFi.BSSIDstr(i);
+        ap["signalStrength"] = WiFi.RSSI(i);
+    }
+    String json;
+    serializeJson(doc, json);
+
+    // perform a POST request
+    Serial.println(json);
+    WiFiClientSecure wifiClient;
+    wifiClient.setInsecure();
+    HTTPClient httpClient;
+    httpClient.begin(wifiClient, "https://location.services.mozilla.com/v1/geolocate?key=test");
+    httpClient.addHeader("Content-Type", "application/json");
+    int res = httpClient.POST(json);
+    bool result = (res == HTTP_CODE_OK);
+    String response = result ? httpClient.getString() : httpClient.errorToString(res);
+    httpClient.end();
+
+    // parse response
+    Serial.println(response);
+    return res;
+}
+
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "Do HTTP GET" },
     { "config", do_config, "Show/clear config" },
     { "pm", do_pm, "Simulate PM value" },
+    { "geo", do_geolocate, "Perform a wifi geo-localisation request" },
     { NULL, NULL, NULL }
 };
 
