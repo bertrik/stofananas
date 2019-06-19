@@ -225,6 +225,7 @@ static int do_geolocate(int argc, char *argv[])
 
     // create JSON request
     static DynamicJsonDocument doc(4096);
+    doc.clear();
     doc["considerIp"] = "true";
     JsonArray aps = doc.createNestedArray("wifiAccessPoints");
     for (int i = 0; i < n; i++) {
