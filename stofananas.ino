@@ -183,6 +183,15 @@ static int do_config(int argc, char *argv[])
         EEPROM.commit();
     }
 
+    if ((argc > 2) && (strcmp(argv[1], "set") == 0)) {
+        char *id = argv[2];
+        print("Setting id to '%s'\n", id);
+        strcpy(savedata.luftdatenid, id);
+        savedata.magic = SAVEDATA_MAGIC;
+        EEPROM.put(0, savedata);
+        EEPROM.commit();
+    }
+
     print("config.luftdatenid = %s\n", savedata.luftdatenid);
     print("config.magic       = %08X\n", savedata.magic);
 
