@@ -121,10 +121,10 @@ static bool decode_json(String json, const char *item, float *value)
         // iterate over all sensor data values (P0, P1, P2, etc)
         for (JsonObject sensordatavalue:sensordatavalues) {
             const char *value_type = sensordatavalue["value_type"];
-            const char *value = sensordatavalue["value"];
+            float value = sensordatavalue["value"];
             if (strcmp(item, value_type) == 0) {
+                meas_sum += value;
                 meas_num++;
-                meas_sum += strtof(value, NULL);
             }
         }
     }
