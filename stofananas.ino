@@ -156,6 +156,22 @@ static bool fetch_json(const char *luftdatenid, String &json)
     return result;
 }
 
+static bool fetch_with_filter(String filter, String &response)
+{
+    String url = "http://api.luftdaten.info/v1/filter/" + filter;
+
+    // perform the GET
+    HTTPClient httpClient;
+    WiFiClient wifiClient;
+    httpClient.begin(wifiClient, url);
+    int res = httpClient.GET();
+    bool result = (res == HTTP_CODE_OK);
+    response = result ? httpClient.getString() : httpClient.errorToString(res);
+    httpClient.end();
+
+    return result;
+}
+
 static int do_get(int argc, char *argv[])
 {
     // perform the GET
@@ -190,6 +206,18 @@ static int do_config(int argc, char *argv[])
         savedata.magic = SAVEDATA_MAGIC;
         EEPROM.put(0, savedata);
         EEPROM.commit();
+    }
+
+    if ((argc > 1) && (strcmp(argv[1], "auto") == 0)) {
+        print("Auto-determining luftdaten id...\n");
+        float lat, lon, acc;
+        String json;
+        if (geolocate(lat, lon, acc)) {
+            char filter[64];
+            snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, acc / 1000.0);
+            fetch_with_filter(filter, json);
+            Serial.println(json);
+        }
     }
 
     print("config.luftdatenid = %s\n", savedata.luftdatenid);
