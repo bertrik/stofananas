@@ -137,32 +137,11 @@ static bool decode_json(String json, const char *item, float *value)
     return false;
 }
 
-static bool fetch_json(const char *luftdatenid, String &json)
+static bool fetch_luftdaten(String url, String &response)
 {
-    char url[64];
-    snprintf(url, sizeof(url), "http://api.luftdaten.info/v1/sensor/%s/", luftdatenid);
-
     // perform the GET
-    print("GET %s ... ", url);
-    HTTPClient httpClient;
     WiFiClient wifiClient;
-    httpClient.begin(wifiClient, url);
-    int res = httpClient.GET();
-    bool result = (res == HTTP_CODE_OK);
-    json = result ? httpClient.getString() : httpClient.errorToString(res);
-    httpClient.end();
-    print("%d\n", res);
-
-    return result;
-}
-
-static bool fetch_with_filter(String filter, String &response)
-{
-    String url = "http://api.luftdaten.info/v1/filter/" + filter;
-
-    // perform the GET
     HTTPClient httpClient;
-    WiFiClient wifiClient;
     httpClient.begin(wifiClient, url);
     int res = httpClient.GET();
     bool result = (res == HTTP_CODE_OK);
@@ -172,11 +151,23 @@ static bool fetch_with_filter(String filter, String &response)
     return result;
 }
 
+static bool fetch_sensor(String luftdatenid, String &response)
+{
+    String url = "http://api.luftdaten.info/v1/sensor/" + luftdatenid + "/";
+    return fetch_luftdaten(url, response);
+}
+
+static bool fetch_with_filter(String filter, String &response)
+{
+    String url = "http://api.luftdaten.info/v1/filter/" + filter;
+    return fetch_luftdaten(url, response);
+}
+
 static int do_get(int argc, char *argv[])
 {
     // perform the GET
     String json;
-    if (fetch_json(savedata.luftdatenid, json)) {
+    if (fetch_sensor(savedata.luftdatenid, json)) {
         print("JSON: ");
         Serial.println(json);
     }
@@ -341,7 +332,7 @@ void loop(void)
         period_last = period;
         String json;
         float pm;
-        if (fetch_json(savedata.luftdatenid, json) && decode_json(json, "P1", &pm)) {
+        if (fetch_sensor(savedata.luftdatenid, json) && decode_json(json, "P1", &pm)) {
             print("PM=%f\n", pm);
             color = interpolate(pm, pmlevels);
         }
