@@ -205,9 +205,27 @@ static int do_config(int argc, char *argv[])
         String json;
         if (geolocate(lat, lon, acc)) {
             char filter[64];
-            snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, acc / 1000.0);
-            fetch_with_filter(filter, json);
-            Serial.println(json);
+            snprintf(filter, sizeof(filter), "area=%f,%f,0.1", lat, lon);
+            if (fetch_with_filter(filter, json)) {
+                Serial.println(json);
+                DynamicJsonDocument doc(4096);
+                deserializeJson(doc, json);
+
+                // find first element for PIN 1
+                JsonArray root = doc.as < JsonArray > ();
+                for (JsonObject meas:root) {
+                    JsonObject sensor = meas["sensor"];
+                    int pin = sensor["pin"];
+                    if (pin == 1) {
+                        String id = sensor["id"];
+                        strcpy(savedata.luftdatenid, id.c_str());
+                        savedata.magic = SAVEDATA_MAGIC;
+                        EEPROM.put(0, savedata);
+                        EEPROM.commit();
+                        break;
+                    }
+                }
+            }
         }
     }
 
