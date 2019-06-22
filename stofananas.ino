@@ -225,7 +225,7 @@ static int do_pm(int argc, char *argv[])
     return 0;
 }
 
-static int do_geolocate(int argc, char *argv[])
+static bool geolocate(float &latitude, float &longitude, float &accuracy)
 {
     // scan for networks
     Serial.print("Scanning...");
@@ -233,8 +233,7 @@ static int do_geolocate(int argc, char *argv[])
     Serial.printf("%d networks found\n", n);
 
     // create JSON request
-    static DynamicJsonDocument doc(4096);
-    doc.clear();
+    DynamicJsonDocument doc(4096);
     doc["considerIp"] = "true";
     JsonArray aps = doc.createNestedArray("wifiAccessPoints");
     for (int i = 0; i < n; i++) {
@@ -256,10 +255,36 @@ static int do_geolocate(int argc, char *argv[])
     bool result = (res == HTTP_CODE_OK);
     String response = result ? httpClient.getString() : httpClient.errorToString(res);
     httpClient.end();
+    if (res != HTTP_CODE_OK) {
+        return false;
+    }
 
     // parse response
     Serial.println(response);
-    return res;
+    doc.clear();
+    DeserializationError err = deserializeJson(doc, response);
+    if (err != DeserializationError::Ok) {
+        Serial.print("Failed to deserialize JSON!\n");
+        return false;
+    }
+
+    JsonObject location = doc["location"];
+    accuracy = doc["accuracy"];
+    latitude = location["lat"];
+    longitude = location["lng"];
+
+    return true;
+}
+
+static int do_geolocate(int argc, char *argv[])
+{
+    float latitude, longitude, accuracy;
+    bool ok = geolocate(latitude, longitude, accuracy);
+    if (ok) {
+        Serial.printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
+    }
+
+    return ok ? 0 : -1;
 }
 
 const cmd_t commands[] = {
