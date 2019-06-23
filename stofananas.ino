@@ -326,10 +326,10 @@ static int do_geolocate(int argc, char *argv[])
 
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
-    { "get", do_get, "Do HTTP GET" },
-    { "config", do_config, "Show/clear config" },
-    { "pm", do_pm, "Simulate PM value" },
-    { "geo", do_geolocate, "Perform a wifi geo-localisation request" },
+    { "get", do_get, "GET the PM10 value from Luftdaten" },
+    { "config", do_config, "[auto|clear|set] Manipulate configuration of Luftdaten id" },
+    { "pm", do_pm, "Simulate PM value and update the LED" },
+    { "geo", do_geolocate, "Perform a wifi geo-localisation" },
     { NULL, NULL, NULL }
 };
 
