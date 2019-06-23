@@ -168,16 +168,18 @@ static int do_get(int argc, char *argv[])
     // perform the GET
     String json;
     if (fetch_sensor(savedata.luftdatenid, json)) {
-        print("JSON: ");
-        Serial.println(json);
+        // decode it
+        float pm = 0.0;
+        if (decode_json(json, "P1", &pm)) {
+            print("PM average: %f\n", pm);
+        } else {
+            print("JSON decode failed!\n");
+            return -1;
+        }
+    } else {
+        print("GET failed\n");
+        return -2;
     }
-
-    // decode it
-    float pm = 0.0;
-    if (decode_json(json, "P1", &pm)) {
-        print("PM average: %f\n", pm);
-    }
-
     return 0;
 }
 
