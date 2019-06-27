@@ -21,6 +21,9 @@
 
 #define SAVEDATA_MAGIC  0xCAFEBABE
 
+#define POLL_INTERVAL 300000
+
+
 typedef struct {
     char luftdatenid[16];
     uint32_t magic;
@@ -43,13 +46,21 @@ static char line[120];
 
 // see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
 static const pmlevel_t pmlevels[] = {
-    { 0, 160 },     // blue
-    { 25, 96 },     // green
-    { 50, 64 },     // yellow
-    { 100, 0 },     // red
-    { 200, -32 },   // pink
-    { -1, 0 }     // END
+    { 0, 160 },                 // blue
+    { 25, 96 },                 // green
+    { 50, 64 },                 // yellow
+    { 100, 0 },                 // red
+    { 200, -32 },               // pink
+    { -1, 0 }                   // END
 };
+
+static void save_luftdaten(int id)
+{
+    sprintf(savedata.luftdatenid, "%d", id);
+    savedata.magic = SAVEDATA_MAGIC;
+    EEPROM.put(0, savedata);
+    EEPROM.commit();
+}
 
 static void wifiManagerCallback(void)
 {
@@ -59,41 +70,6 @@ static void wifiManagerCallback(void)
     print("Saving data to EEPROM: luftdatenid='%s'\n", savedata.luftdatenid);
     EEPROM.put(0, savedata);
     EEPROM.commit();
-}
-
-void setup(void)
-{
-    Serial.begin(115200);
-    print("\nESP-STOFANANAS\n");
-    EditInit(line, sizeof(line));
-
-    // init config
-    EEPROM.begin(sizeof(savedata));
-    EEPROM.get(0, savedata);
-
-    // get ESP id
-    sprintf(esp_id, "%08X", ESP.getChipId());
-    print("ESP ID: %s\n", esp_id);
-
-    // config led
-    FastLED.addLeds < PL9823, DATA_PIN > (&led, 1);
-    led = CRGB::Yellow;
-    FastLED.show();
-
-    // connect to wifi
-    print("Starting WIFI manager ...\n");
-    wifiManager.addParameter(&luftdatenIdParam);
-    wifiManager.setSaveConfigCallback(wifiManagerCallback);
-    wifiManager.setConfigPortalTimeout(120);
-    if (savedata.magic == SAVEDATA_MAGIC) {
-        wifiManager.autoConnect("ESP-STOFANANAS");
-    } else {
-        wifiManager.startConfigPortal("ESP-STOFANANAS");
-    }
-
-    // turn off LED
-    led = CRGB::Black;
-    FastLED.show();
 }
 
 static void show_help(const cmd_t * cmds)
@@ -137,9 +113,10 @@ static bool decode_json(String json, const char *item, float *value)
     return false;
 }
 
-static bool fetch_luftdaten(String url, String &response)
+static bool fetch_luftdaten(String url, String & response)
 {
-    // perform the GET
+    Serial.printf("> %s\n", url.c_str());
+
     WiFiClient wifiClient;
     HTTPClient httpClient;
     httpClient.begin(wifiClient, url);
@@ -148,19 +125,49 @@ static bool fetch_luftdaten(String url, String &response)
     response = result ? httpClient.getString() : httpClient.errorToString(res);
     httpClient.end();
 
+    Serial.printf("< %s\n", response.c_str());
     return result;
 }
 
-static bool fetch_sensor(String luftdatenid, String &response)
+static bool fetch_sensor(String luftdatenid, String & response)
 {
     String url = "http://api.luftdaten.info/v1/sensor/" + luftdatenid + "/";
     return fetch_luftdaten(url, response);
 }
 
-static bool fetch_with_filter(String filter, String &response)
+static bool fetch_with_filter(String filter, String & response)
 {
     String url = "http://api.luftdaten.info/v1/filter/" + filter;
     return fetch_luftdaten(url, response);
+}
+
+static bool find_closest(String json, float lat, float lon, int &id)
+{
+    DynamicJsonDocument doc(10000);
+    deserializeJson(doc, json);
+
+    // find closest element for PIN 1
+    id = -1;
+    float min_d2 = 1000;
+    JsonArray root = doc.as < JsonArray > ();
+    for (JsonObject meas:root) {
+        JsonObject sensor = meas["sensor"];
+        int pin = sensor["pin"];
+        if (pin == 1) {
+            JsonObject location = meas["location"];
+            float latitude = location["latitude"];
+            float longitude = location["longitude"];
+
+            float dlon = cos(M_PI * lat / 180.0) * (longitude - lon);
+            float dlat = (latitude - lat);
+            float d2 = dlon * dlon + dlat * dlat;
+            if (d2 < min_d2) {
+                min_d2 = d2;
+                id = sensor["id"];
+            }
+        }
+    }
+    return (id > 0);
 }
 
 static int do_get(int argc, char *argv[])
@@ -193,41 +200,19 @@ static int do_config(int argc, char *argv[])
     }
 
     if ((argc > 2) && (strcmp(argv[1], "set") == 0)) {
-        char *id = argv[2];
-        print("Setting id to '%s'\n", id);
-        strcpy(savedata.luftdatenid, id);
-        savedata.magic = SAVEDATA_MAGIC;
-        EEPROM.put(0, savedata);
-        EEPROM.commit();
+        int id = atoi(argv[2]);
+        print("Setting id to '%d'\n", id);
+        save_luftdaten(id);
     }
 
     if ((argc > 1) && (strcmp(argv[1], "auto") == 0)) {
-        print("Auto-determining luftdaten id...\n");
-        float lat, lon, acc;
-        String json;
-        if (geolocate(lat, lon, acc)) {
-            char filter[64];
-            snprintf(filter, sizeof(filter), "area=%f,%f,0.1", lat, lon);
-            if (fetch_with_filter(filter, json)) {
-                Serial.println(json);
-                DynamicJsonDocument doc(4096);
-                deserializeJson(doc, json);
-
-                // find first element for PIN 1
-                JsonArray root = doc.as < JsonArray > ();
-                for (JsonObject meas:root) {
-                    JsonObject sensor = meas["sensor"];
-                    int pin = sensor["pin"];
-                    if (pin == 1) {
-                        String id = sensor["id"];
-                        strcpy(savedata.luftdatenid, id.c_str());
-                        savedata.magic = SAVEDATA_MAGIC;
-                        EEPROM.put(0, savedata);
-                        EEPROM.commit();
-                        break;
-                    }
-                }
-            }
+        print("Attempting autoconfig...");
+        int id;
+        if (autoconfig(id)) {
+            print("OK\n");
+            save_luftdaten(id);
+        } else {
+            print("FAIL\n");
         }
     }
 
@@ -284,7 +269,6 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     serializeJson(doc, json);
 
     // perform a POST request
-    Serial.println(json);
     WiFiClientSecure wifiClient;
     wifiClient.setInsecure();
     HTTPClient httpClient;
@@ -297,7 +281,6 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     if (res != HTTP_CODE_OK) {
         return false;
     }
-
     // parse response
     Serial.println(response);
     doc.clear();
@@ -308,9 +291,36 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     }
 
     JsonObject location = doc["location"];
-    accuracy = doc["accuracy"];
     latitude = location["lat"];
     longitude = location["lng"];
+    accuracy = doc["accuracy"];
+
+    return true;
+}
+
+bool autoconfig(int &id)
+{
+    // geolocate
+    float lat, lon, acc;
+    if (!geolocate(lat, lon, acc)) {
+        print("geolocate failed!\n");
+        return false;
+    }
+
+    // fetch nearby sensors
+    char filter[64];
+    snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, acc / 1000);
+    String json;
+    if (!fetch_with_filter(filter, json)) {
+        print("fetch_with_filter failed!\n");
+        return false;
+    }
+
+    // find closest one
+    if (!find_closest(json, lat, lon, id)) {
+        print("find_closest failed!\n");
+        return false;
+    }
 
     return true;
 }
@@ -319,11 +329,12 @@ static int do_geolocate(int argc, char *argv[])
 {
     float latitude, longitude, accuracy;
     bool ok = geolocate(latitude, longitude, accuracy);
-    if (ok) {
-        Serial.printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
+    if (!ok) {
+        return -1;
     }
 
-    return ok ? 0 : -1;
+    Serial.printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
+    return 0;
 }
 
 const cmd_t commands[] = {
@@ -341,7 +352,50 @@ static int do_help(int argc, char *argv[])
     return 0;
 }
 
-#define POLL_INTERVAL 300000
+void setup(void)
+{
+    Serial.begin(115200);
+    print("\nESP-STOFANANAS\n");
+    EditInit(line, sizeof(line));
+
+    // init config
+    EEPROM.begin(sizeof(savedata));
+    EEPROM.get(0, savedata);
+
+    // get ESP id
+    sprintf(esp_id, "%08X", ESP.getChipId());
+    print("ESP ID: %s\n", esp_id);
+
+    // config led
+    FastLED.addLeds < PL9823, DATA_PIN > (&led, 1).setCorrection(TypicalSMD5050);
+    led = CRGB::Yellow;
+    FastLED.show();
+
+    // connect to wifi
+    print("Starting WIFI manager ...\n");
+    wifiManager.addParameter(&luftdatenIdParam);
+    wifiManager.setSaveConfigCallback(wifiManagerCallback);
+    wifiManager.setConfigPortalTimeout(120);
+    if (savedata.magic == SAVEDATA_MAGIC) {
+        wifiManager.autoConnect("ESP-STOFANANAS");
+    } else {
+        wifiManager.startConfigPortal("ESP-STOFANANAS");
+    }
+
+    // try autoconfig if id was not set
+    if (strlen(savedata.luftdatenid) == 0) {
+        led = CRGB::White;
+        FastLED.show();
+        int id;
+        if (autoconfig(id)) {
+            save_luftdaten(id);
+            print("Autoconfig set %d\n", id);
+        }
+    }
+    // turn off LED
+    led = CRGB::Black;
+    FastLED.show();
+}
 
 void loop(void)
 {
@@ -357,7 +411,6 @@ void loop(void)
             color = interpolate(pm, pmlevels);
         }
     }
-
     // show on LED
     led = color;
     FastLED.show();
@@ -388,4 +441,3 @@ void loop(void)
         print(">");
     }
 }
-
