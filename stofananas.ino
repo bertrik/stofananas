@@ -298,7 +298,7 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     return true;
 }
 
-bool autoconfig(int &id)
+static bool autoconfig(int &id)
 {
     // geolocate
     float lat, lon, acc;
@@ -307,22 +307,24 @@ bool autoconfig(int &id)
         return false;
     }
 
-    // fetch nearby sensors
-    char filter[64];
-    snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, acc / 1000);
-    String json;
-    if (!fetch_with_filter(filter, json)) {
-        print("fetch_with_filter failed!\n");
-        return false;
+    // search in increasingly large area
+    for (int i = 0; i < 10; i++, acc *= 2) {
+        // fetch nearby sensors
+        char filter[64];
+        snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, acc / 1000);
+        String json;
+        if (!fetch_with_filter(filter, json)) {
+            print("fetch_with_filter failed!\n");
+            return false;
+        }
+
+        // find closest one
+        if (find_closest(json, lat, lon, id)) {
+            return true;
+        }
     }
 
-    // find closest one
-    if (!find_closest(json, lat, lon, id)) {
-        print("find_closest failed!\n");
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 static int do_geolocate(int argc, char *argv[])
