@@ -83,8 +83,10 @@ static int do_help(int argc, char *argv[]);
 
 static bool decode_json(String json, const char *item, float *value)
 {
-    static DynamicJsonDocument doc(4096);
-    deserializeJson(doc, json);
+    DynamicJsonDocument doc(4096);
+    if (deserializeJson(doc, json) != DeserializationError::Ok) {
+        return false;
+    }
 
     int meas_num = 0;
     float meas_sum = 0.0;
@@ -144,7 +146,9 @@ static bool fetch_with_filter(String filter, String & response)
 static bool find_closest(String json, float lat, float lon, int &id)
 {
     DynamicJsonDocument doc(10000);
-    deserializeJson(doc, json);
+    if (deserializeJson(doc, json) != DeserializationError::Ok) {
+        return false;
+    }
 
     // find closest element for PIN 1
     id = -1;
@@ -284,8 +288,7 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     // parse response
     Serial.println(response);
     doc.clear();
-    DeserializationError err = deserializeJson(doc, response);
-    if (err != DeserializationError::Ok) {
+    if (deserializeJson(doc, response) != DeserializationError::Ok) {
         Serial.print("Failed to deserialize JSON!\n");
         return false;
     }
