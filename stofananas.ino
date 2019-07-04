@@ -149,7 +149,6 @@ static bool find_closest(String json, float lat, float lon, int &id)
     if (deserializeJson(doc, json) != DeserializationError::Ok) {
         return false;
     }
-
     // find closest element for PIN 1
     id = -1;
     float min_d2 = 1000;
@@ -198,7 +197,7 @@ static int do_config(int argc, char *argv[])
 {
     if ((argc > 1) && (strcmp(argv[1], "clear") == 0)) {
         print("Clearing config\n");
-        savedata.magic = 0;
+        memset(&savedata, 0, sizeof(savedata));
         EEPROM.put(0, savedata);
         EEPROM.commit();
     }
@@ -309,7 +308,6 @@ static bool autoconfig(int &id)
         print("geolocate failed!\n");
         return false;
     }
-
     // search in increasingly large area
     for (int i = 0; i < 10; i++, acc *= 2) {
         // fetch nearby sensors
@@ -320,7 +318,6 @@ static bool autoconfig(int &id)
             print("fetch_with_filter failed!\n");
             return false;
         }
-
         // find closest one
         if (find_closest(json, lat, lon, id)) {
             return true;
