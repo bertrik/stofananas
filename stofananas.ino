@@ -310,6 +310,9 @@ static bool autoconfig(int &id)
     }
     // search in increasingly large area
     for (int i = 0; i < 10; i++, acc *= 2) {
+        // yield() in a loop, although it's not clear from the documentation if it's needed or not
+        yield();
+
         // fetch nearby sensors
         char filter[64];
         snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, acc / 1000);
