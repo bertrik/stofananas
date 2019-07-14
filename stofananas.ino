@@ -373,7 +373,7 @@ void setup(void)
     print("ESP ID: %s\n", esp_id);
 
     // config led
-    FastLED.addLeds < PL9823, DATA_PIN > (&led, 1).setCorrection(TypicalSMD5050);
+    FastLED.addLeds < PL9823, DATA_PIN > (&led, 1);
     led = CRGB::Yellow;
     FastLED.show();
 
