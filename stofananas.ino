@@ -56,7 +56,7 @@ static const pmlevel_t pmlevels[] = {
 
 static void save_luftdaten(int id)
 {
-    sprintf(savedata.luftdatenid, "%d", id);
+    snprintf(savedata.luftdatenid, sizeof(savedata.luftdatenid), "%d", id);
     savedata.magic = SAVEDATA_MAGIC;
     EEPROM.put(0, savedata);
     EEPROM.commit();
@@ -369,7 +369,7 @@ void setup(void)
     EEPROM.get(0, savedata);
 
     // get ESP id
-    sprintf(esp_id, "%08X", ESP.getChipId());
+    snprintf(esp_id, sizeof(esp_id), "%08X", ESP.getChipId());
     print("ESP ID: %s\n", esp_id);
 
     // config led
