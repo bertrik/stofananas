@@ -343,12 +343,19 @@ static int do_geolocate(int argc, char *argv[])
     return 0;
 }
 
+static int do_reboot(int argc, char *argv[])
+{
+    ESP.restart();
+    return 0;
+}
+
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "GET the PM10 value from Luftdaten" },
     { "config", do_config, "[auto|clear|set] Manipulate configuration of Luftdaten id" },
     { "pm", do_pm, "Simulate PM value and update the LED" },
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
+    { "reboot", do_reboot, "Reboot" },
     { NULL, NULL, NULL }
 };
 
