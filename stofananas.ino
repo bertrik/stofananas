@@ -10,6 +10,7 @@
 #include <ESP8266HTTPClient.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
+#include <ArduinoOTA.h>
 
 #include "print.h"
 #include "cmdproc.h"
@@ -390,10 +391,15 @@ void setup(void)
     wifiManager.setSaveConfigCallback(wifiManagerCallback);
     wifiManager.setConfigPortalTimeout(120);
     if (savedata.magic == SAVEDATA_MAGIC) {
-        wifiManager.autoConnect("ESP-STOFANANAS");
+        wifiManager.autoConnect("ESP-PMLAMP");
     } else {
-        wifiManager.startConfigPortal("ESP-STOFANANAS");
+        wifiManager.startConfigPortal("ESP-PMLAMP");
     }
+
+    // setup OTA
+    ArduinoOTA.setHostname("esp-pmlamp");
+    ArduinoOTA.setPassword("pmlamp");
+    ArduinoOTA.begin();
 
     // try autoconfig if id was not set
     if (strlen(savedata.luftdatenid) == 0) {
@@ -453,4 +459,9 @@ void loop(void)
         }
         print(">");
     }
+
+    // allow OTA
+    ArduinoOTA.handle();
 }
+
+
