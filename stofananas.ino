@@ -366,6 +366,32 @@ static int do_help(int argc, char *argv[])
     return 0;
 }
 
+static void animate(void)
+{
+    int h = 0;
+    int s = 255;
+    int v = 0;
+
+    // fade in
+    for (v = 0; v < 255; v++) {
+        led = CHSV(h, s, v);
+        FastLED.show();
+        delay(1);
+    }
+    // cycle colours
+    for (h = 0; h < 255; h++) {
+        led = CHSV(h, s, v);
+        FastLED.show();
+        delay(4);
+    }
+    // fade out
+    for (v = 255; v >= 0; v--) {
+        led = CHSV(h, s, v);
+        FastLED.show();
+        delay(1);
+    }
+}
+
 void setup(void)
 {
     Serial.begin(115200);
@@ -382,8 +408,7 @@ void setup(void)
 
     // config led
     FastLED.addLeds < PL9823, DATA_PIN > (&led, 1);
-    led = CRGB::Yellow;
-    FastLED.show();
+    animate();
 
     // connect to wifi
     print("Starting WIFI manager ...\n");
@@ -459,9 +484,6 @@ void loop(void)
         }
         print(">");
     }
-
     // allow OTA
     ArduinoOTA.handle();
 }
-
-
