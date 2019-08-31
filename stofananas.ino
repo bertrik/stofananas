@@ -11,6 +11,7 @@
 #include <FastLED.h>
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
+#include "OTA_PASSWORD.h"
 
 #include "print.h"
 #include "cmdproc.h"
@@ -424,7 +425,7 @@ void setup(void)
 
     // setup OTA
     ArduinoOTA.setHostname("esp-pmlamp");
-    ArduinoOTA.setPassword("pmlamp");
+    ArduinoOTA.setPassword(OTA_PASSWORD);
     ArduinoOTA.begin();
 
     // try autoconfig if id was not set
