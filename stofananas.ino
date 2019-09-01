@@ -82,7 +82,7 @@ static void show_help(const cmd_t * cmds)
 
 static int do_help(int argc, char *argv[]);
 
-static bool decode_json(String json, const char *item, float *value)
+static bool decode_json(String json, const char *item, float *value, float *latitude, float *longitude)
 {
     DynamicJsonDocument doc(4096);
     if (deserializeJson(doc, json) != DeserializationError::Ok) {
@@ -95,9 +95,8 @@ static bool decode_json(String json, const char *item, float *value)
     // iterate over all measurements
     JsonArray root = doc.as < JsonArray > ();
     for (JsonObject meas:root) {
+        // get the particulate matter measurement item
         JsonArray sensordatavalues = meas["sensordatavalues"];
-
-        // iterate over all sensor data values (P0, P1, P2, etc)
         for (JsonObject sensordatavalue:sensordatavalues) {
             const char *value_type = sensordatavalue["value_type"];
             float value = sensordatavalue["value"];
@@ -106,6 +105,10 @@ static bool decode_json(String json, const char *item, float *value)
                 meas_num++;
             }
         }
+        // get the WGS84 location
+        JsonObject location = meas["location"];
+        *latitude = location["latitude"];
+        *longitude = location["longitude"];
     }
 
     if (meas_num > 0) {
@@ -181,8 +184,10 @@ static int do_get(int argc, char *argv[])
     if (fetch_sensor(savedata.luftdatenid, json)) {
         // decode it
         float pm = 0.0;
-        if (decode_json(json, "P1", &pm)) {
-            print("PM average: %f\n", pm);
+        float lat, lon;
+        if (decode_json(json, "P1", &pm, &lat, &lon)) {
+            print("PM avg: %f, lat: %f, lon: %f\n", pm, lat, lon);
+            print("https://maps.luftdaten.info/#14/%f/%f\n", lat, lon);
         } else {
             print("JSON decode failed!\n");
             return -1;
@@ -272,7 +277,7 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     String json;
     serializeJson(doc, json);
 
-    // perform a POST request
+    // send JSON with POST, insecure because we can't verify the certificate
     WiFiClientSecure wifiClient;
     wifiClient.setInsecure();
     HTTPClient httpClient;
@@ -341,7 +346,6 @@ static int do_geolocate(int argc, char *argv[])
 
     Serial.printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
     Serial.printf("http://google.com/maps/place/%f,%f\n", latitude, longitude);
-    Serial.printf("https://maps.luftdaten.info/#14/%f/%f\n", latitude, longitude);
     return 0;
 }
 
@@ -450,9 +454,9 @@ void loop(void)
     if (period != period_last) {
         period_last = period;
         String json;
-        float pm;
-        if (fetch_sensor(savedata.luftdatenid, json) && decode_json(json, "P1", &pm)) {
-            print("PM=%f\n", pm);
+        float pm, lat, lon;
+        if (fetch_sensor(savedata.luftdatenid, json) && decode_json(json, "P1", &pm, &lat, &lon)) {
+            print("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
             color = interpolate(pm, pmlevels);
         }
     }
