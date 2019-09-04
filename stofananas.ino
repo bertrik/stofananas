@@ -369,7 +369,7 @@ static int do_geolocate(int argc, char *argv[])
     }
 
     Serial.printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
-    Serial.printf("http://google.com/maps/place/%f,%f\n", latitude, longitude);
+    Serial.printf("https://google.com/maps/place/%f,%f\n", latitude, longitude);
     return 0;
 }
 
