@@ -20,7 +20,6 @@
 
 #define DATA_PIN_1LED   D2
 #define DATA_PIN_7LED   D4
-#define NUM_LEDS        7
 
 #define SAVEDATA_MAGIC  0xCAFEBABE
 
@@ -43,9 +42,8 @@ static char esp_id[16];
 static WiFiManager wifiManager;
 static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
 
-// we send colours to two sets of LEDs, a single LED on D2, a set of 7 LEDs on D4
 static CRGB leds1[1];
-static CRGB leds7[NUM_LEDS];
+static CRGB leds7[7];
 static CHSV color;
 static char line[120];
 
@@ -58,6 +56,17 @@ static const pmlevel_t pmlevels[] = {
     { 200, -32 },               // pink
     { -1, 0 }                   // END
 };
+
+static void set_led(CRGB crgb)
+{
+    // we send the colour to two sets of LEDs: a single LED on pin D2, a star of 7 LEDs on pin D4
+    fill_solid(leds1, 1, crgb);
+    fill_solid(leds7, 7, crgb);
+    FastLED.show();
+
+    // turn off built-in ESP8266 blue LED on pin D4
+    digitalWrite(D4, 1);
+}
 
 static void save_luftdaten(int id)
 {
@@ -249,13 +258,6 @@ static CHSV interpolate(float pm, const pmlevel_t table[])
     return CHSV(hue, 255, 255);
 }
 
-static void set_led(CRGB crgb)
-{
-    fill_solid(leds1, 1, crgb);
-    fill_solid(leds7, 7, crgb);
-    FastLED.show();
-}
-
 static int do_pm(int argc, char *argv[])
 {
     if (argc < 2) {
@@ -263,7 +265,7 @@ static int do_pm(int argc, char *argv[])
     }
 
     float pm = atoi(argv[1]);
-    color = interpolate(pm, pmlevels);
+    set_led(interpolate(pm, pmlevels));
 //    print("pm=%d => color = #%02X%02X%02X\n", (int) pm, color.r, color.g, color.b);
 
     return 0;
@@ -420,8 +422,8 @@ void setup(void)
     print("ESP ID: %s\n", esp_id);
 
     // config led
-    FastLED.addLeds < PL9823, DATA_PIN_1LED > (leds1, 1);
-    FastLED.addLeds < PL9823, DATA_PIN_7LED > (leds7, 7);
+    FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1);
+    FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7);
     animate();
 
     // connect to wifi
@@ -466,11 +468,9 @@ void loop(void)
         float pm, lat, lon;
         if (fetch_sensor(savedata.luftdatenid, json) && decode_json(json, "P1", &pm, &lat, &lon)) {
             print("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
-            color = interpolate(pm, pmlevels);
+            set_led(interpolate(pm, pmlevels));
         }
     }
-    // show on LED
-    set_led(color);
 
     // parse command line
     bool haveLine = false;
