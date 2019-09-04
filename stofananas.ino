@@ -276,17 +276,28 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     // scan for networks
     Serial.print("Scanning...");
     int n = WiFi.scanNetworks();
-    Serial.printf("%d networks found\n", n);
+    Serial.printf("%d APs found...", n);
 
     // create JSON request
     DynamicJsonDocument doc(4096);
     doc["considerIp"] = "true";
     JsonArray aps = doc.createNestedArray("wifiAccessPoints");
+    int num = 0;
     for (int i = 0; i < n; i++) {
+        // skip hidden and "nomap" APs
+        if (WiFi.isHidden(i) || WiFi.SSID(i).endsWith("_nomap")) {
+            continue;
+        }
         JsonObject ap = aps.createNestedObject();
         ap["macAddress"] = WiFi.BSSIDstr(i);
         ap["signalStrength"] = WiFi.RSSI(i);
+        if (++num == 20) {
+            // limit scan to some arbitrary number to avoid alloc fails later
+            break;
+        }
     }
+    Serial.printf("%d APs used\n", num);
+
     String json;
     serializeJson(doc, json);
 
