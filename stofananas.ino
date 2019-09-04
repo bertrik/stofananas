@@ -18,7 +18,9 @@
 
 #include <Arduino.h>
 
-#define DATA_PIN    D2
+#define DATA_PIN_1LED   D2
+#define DATA_PIN_7LED   D4
+#define NUM_LEDS        7
 
 #define SAVEDATA_MAGIC  0xCAFEBABE
 
@@ -41,7 +43,9 @@ static char esp_id[16];
 static WiFiManager wifiManager;
 static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
 
-static CRGB led;
+// we send colours to two sets of LEDs, a single LED on D2, a set of 7 LEDs on D4
+static CRGB leds1[1];
+static CRGB leds7[NUM_LEDS];
 static CHSV color;
 static char line[120];
 
@@ -245,6 +249,13 @@ static CHSV interpolate(float pm, const pmlevel_t table[])
     return CHSV(hue, 255, 255);
 }
 
+static void set_led(CRGB crgb)
+{
+    fill_solid(leds1, 1, crgb);
+    fill_solid(leds7, 7, crgb);
+    FastLED.show();
+}
+
 static int do_pm(int argc, char *argv[])
 {
     if (argc < 2) {
@@ -379,20 +390,17 @@ static void animate(void)
 
     // fade in
     for (v = 0; v < 255; v++) {
-        led = CHSV(h, s, v);
-        FastLED.show();
+        set_led(CHSV(h, s, v));
         delay(1);
     }
     // cycle colours
     for (h = 0; h < 255; h++) {
-        led = CHSV(h, s, v);
-        FastLED.show();
+        set_led(CHSV(h, s, v));
         delay(4);
     }
     // fade out
     for (v = 255; v >= 0; v--) {
-        led = CHSV(h, s, v);
-        FastLED.show();
+        set_led(CHSV(h, s, v));
         delay(1);
     }
 }
@@ -412,7 +420,8 @@ void setup(void)
     print("ESP ID: %s\n", esp_id);
 
     // config led
-    FastLED.addLeds < PL9823, DATA_PIN > (&led, 1);
+    FastLED.addLeds < PL9823, DATA_PIN_1LED > (leds1, 1);
+    FastLED.addLeds < PL9823, DATA_PIN_7LED > (leds7, 7);
     animate();
 
     // connect to wifi
@@ -433,7 +442,7 @@ void setup(void)
 
     // try autoconfig if id was not set
     if (strlen(savedata.luftdatenid) == 0) {
-        led = CRGB::White;
+        set_led(CRGB::White);
         FastLED.show();
         int id;
         if (autoconfig(id)) {
@@ -442,7 +451,7 @@ void setup(void)
         }
     }
     // turn off LED
-    led = CRGB::Black;
+    set_led(CRGB::Black);
     FastLED.show();
 }
 
@@ -461,8 +470,7 @@ void loop(void)
         }
     }
     // show on LED
-    led = color;
-    FastLED.show();
+    set_led(color);
 
     // parse command line
     bool haveLine = false;
