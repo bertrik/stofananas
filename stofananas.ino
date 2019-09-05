@@ -63,9 +63,6 @@ static void set_led(CRGB crgb)
     fill_solid(leds1, 1, crgb);
     fill_solid(leds7, 7, crgb);
     FastLED.show();
-
-    // turn off built-in ESP8266 blue LED on pin D4
-    digitalWrite(D4, 1);
 }
 
 static void save_luftdaten(int id)
@@ -456,7 +453,6 @@ void setup(void)
     // try autoconfig if id was not set
     if (strlen(savedata.luftdatenid) == 0) {
         set_led(CRGB::White);
-        FastLED.show();
         int id;
         if (autoconfig(id)) {
             save_luftdaten(id);
@@ -465,7 +461,6 @@ void setup(void)
     }
     // turn off LED
     set_led(CRGB::Black);
-    FastLED.show();
 }
 
 void loop(void)
