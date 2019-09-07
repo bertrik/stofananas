@@ -334,13 +334,14 @@ static bool autoconfig(int &id)
         return false;
     }
     // search in increasingly large area
-    for (int i = 0; i < 10; i++, acc *= 2) {
+    float radius = 100.0;
+    for (int i = 0; i < 10; i++, radius *= 2) {
         // yield() in a loop, although it's not clear from the documentation if it's needed or not
         yield();
 
         // fetch nearby sensors
         char filter[64];
-        snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, acc / 1000);
+        snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, radius / 1000);
         String json;
         if (!fetch_with_filter(filter, json)) {
             print("fetch_with_filter failed!\n");
