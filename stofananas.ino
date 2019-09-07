@@ -41,6 +41,7 @@ static char esp_id[16];
 
 static WiFiManager wifiManager;
 static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
+static WiFiClientSecure wifiClient;
 
 static CRGB leds1[1];
 static CRGB leds7[7];
@@ -130,7 +131,6 @@ static bool fetch_luftdaten(String url, String & response)
 {
     Serial.printf("> %s\n", url.c_str());
 
-    WiFiClient wifiClient;
     HTTPClient httpClient;
     httpClient.begin(wifiClient, url);
     int res = httpClient.GET();
@@ -144,13 +144,13 @@ static bool fetch_luftdaten(String url, String & response)
 
 static bool fetch_sensor(String luftdatenid, String & response)
 {
-    String url = "http://api.luftdaten.info/v1/sensor/" + luftdatenid + "/";
+    String url = "https://api.luftdaten.info/v1/sensor/" + luftdatenid + "/";
     return fetch_luftdaten(url, response);
 }
 
 static bool fetch_with_filter(String filter, String & response)
 {
-    String url = "http://api.luftdaten.info/v1/filter/" + filter;
+    String url = "https://api.luftdaten.info/v1/filter/" + filter;
     return fetch_luftdaten(url, response);
 }
 
@@ -296,8 +296,6 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     serializeJson(doc, json);
 
     // send JSON with POST, insecure because we can't verify the certificate
-    WiFiClientSecure wifiClient;
-    wifiClient.setInsecure();
     HTTPClient httpClient;
     httpClient.begin(wifiClient, "https://location.services.mozilla.com/v1/geolocate?key=test");
     httpClient.addHeader("Content-Type", "application/json");
@@ -442,6 +440,9 @@ void setup(void)
     } else {
         wifiManager.startConfigPortal("ESP-PMLAMP");
     }
+
+    // set insecure, we need https for some connection but can't verify the signatures
+    wifiClient.setInsecure();
 
     // try autoconfig if id was not set
     if (strlen(savedata.luftdatenid) == 0) {
