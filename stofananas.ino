@@ -18,6 +18,7 @@
 
 #include <Arduino.h>
 
+// we send the colour to two sets of LEDs: a single LED on pin D2, a star of 7 LEDs on pin D4
 #define DATA_PIN_1LED   D2
 #define DATA_PIN_7LED   D4
 
@@ -59,10 +60,7 @@ static const pmlevel_t pmlevels[] = {
 
 static void set_led(CRGB crgb)
 {
-    // we send the colour to two sets of LEDs: a single LED on pin D2, a star of 7 LEDs on pin D4
-    fill_solid(leds1, 1, crgb);
-    fill_solid(leds7, 7, crgb);
-    FastLED.show();
+    FastLED.showColor(crgb);
 }
 
 static void save_luftdaten(int id)
