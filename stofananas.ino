@@ -462,7 +462,7 @@ void loop(void)
     // fetch a new value every POLL_INTERVAL
     static unsigned int period_last = -1;
     unsigned int period = millis() / POLL_INTERVAL;
-    if (period != period_last) {
+    if ((period != period_last) && (strlen(savedata.luftdatenid) > 0)) {
         period_last = period;
         String json;
         float pm, lat, lon;
