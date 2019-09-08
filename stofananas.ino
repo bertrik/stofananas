@@ -194,7 +194,7 @@ static int do_get(int argc, char *argv[])
         float lat, lon;
         if (decode_json(json, "P1", &pm, &lat, &lon)) {
             print("PM avg: %f, lat: %f, lon: %f\n", pm, lat, lon);
-            print("https://maps.luftdaten.info/#14/%f/%f\n", lat, lon);
+            print("https://maps.luftdaten.info/#14/%.3f/%.3f\n", lat, lon);
         } else {
             print("JSON decode failed!\n");
             return -1;
@@ -338,7 +338,7 @@ static bool autoconfig(int &id)
 
         // fetch nearby sensors
         char filter[64];
-        snprintf(filter, sizeof(filter), "area=%f,%f,%f", lat, lon, radius / 1000);
+        snprintf(filter, sizeof(filter), "area=%.5f,%.5f,%.3f", lat, lon, radius / 1000);
         String json;
         if (!fetch_with_filter(filter, json)) {
             print("fetch_with_filter failed!\n");
