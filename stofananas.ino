@@ -426,8 +426,8 @@ void setup(void)
     print("ESP ID: %s\n", esp_id);
 
     // config led
-    FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1);
-    FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7);
+    FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
+    FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
     animate();
 
     // connect to wifi
