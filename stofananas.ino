@@ -444,31 +444,52 @@ void setup(void)
     // set insecure, we need https for some connection but can't verify the signatures
     wifiClient.setInsecure();
 
-    // try autoconfig if id was not set
-    if (strlen(savedata.luftdatenid) == 0) {
-        set_led(CRGB::White);
-        int id;
-        if (autoconfig(id)) {
-            save_luftdaten(id);
-            print("Autoconfig set %d\n", id);
-        }
-    }
     // turn off LED
     set_led(CRGB::Black);
 }
 
 void loop(void)
 {
+    static int num_fetch_failures = 0;
+    static int num_decode_failures = 0;
+
     // fetch a new value every POLL_INTERVAL
     static unsigned int period_last = -1;
     unsigned int period = millis() / POLL_INTERVAL;
-    if ((period != period_last) && (strlen(savedata.luftdatenid) > 0)) {
+    if (period != period_last) {
         period_last = period;
-        String json;
         float pm, lat, lon;
-        if (fetch_sensor(savedata.luftdatenid, json) && decode_json(json, "P1", &pm, &lat, &lon)) {
-            print("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
-            set_led(interpolate(pm, pmlevels));
+        if (strlen(savedata.luftdatenid) > 0) {
+            // fetch and decode JSON
+            String json;
+            if (fetch_sensor(savedata.luftdatenid, json)) {
+                num_fetch_failures = 0;
+                if (decode_json(json, "P1", &pm, &lat, &lon)) {
+                    num_decode_failures = 0;
+                    print("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
+                    set_led(interpolate(pm, pmlevels));
+                } else {
+                    if (++num_decode_failures >= 10) {
+                        print("Too many decode failures, reconfiguring ...");
+                        strcpy(savedata.luftdatenid, "");
+                    }
+                }
+            } else {
+                // reboot if too many fetch failures occur
+                if (++num_fetch_failures >= 10) {
+                    print("Too many failures, rebooting ...");
+                    ESP.restart();
+                }
+            }
+        } else {
+            // try to autoconfig
+            int id;
+            if (autoconfig(id)) {
+                save_luftdaten(id);
+                print("Autoconfig set %d\n", id);
+                // trigger fetch
+                period_last = -1;
+            }
         }
     }
 
