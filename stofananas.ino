@@ -23,8 +23,8 @@
 
 #define SAVEDATA_MAGIC  0xCAFEBABE
 
-#define POLL_INTERVAL 300000
-
+#define POLL_INTERVAL           300000
+#define LUFTDATEN_TIMEOUT_MS    10000
 
 typedef struct {
     char luftdatenid[16];
@@ -133,6 +133,7 @@ static bool fetch_luftdaten(String url, String & response)
 
     HTTPClient httpClient;
     httpClient.begin(wifiClient, url);
+    httpClient.setTimeout(LUFTDATEN_TIMEOUT_MS);
     int res = httpClient.GET();
     bool result = (res == HTTP_CODE_OK);
     response = result ? httpClient.getString() : httpClient.errorToString(res);
