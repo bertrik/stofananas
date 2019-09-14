@@ -37,7 +37,6 @@ typedef struct {
 } pmlevel_t;
 
 static savedata_t savedata;
-static char esp_id[16];
 
 static WiFiManager wifiManager;
 static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
@@ -421,10 +420,6 @@ void setup(void)
     // init config
     EEPROM.begin(sizeof(savedata));
     EEPROM.get(0, savedata);
-
-    // get ESP id
-    snprintf(esp_id, sizeof(esp_id), "%08X", ESP.getChipId());
-    print("ESP ID: %s\n", esp_id);
 
     // config led
     FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
