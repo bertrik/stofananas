@@ -28,6 +28,7 @@
 
 typedef struct {
     char luftdatenid[16];
+    bool hasRgbLed;
     uint32_t magic;
 } savedata_t;
 
@@ -62,12 +63,17 @@ static void set_led(CRGB crgb)
     FastLED.showColor(crgb);
 }
 
+static void save_config(void)
+{
+    EEPROM.put(0, savedata);
+    EEPROM.commit();
+}
+
 static void save_luftdaten(int id)
 {
     snprintf(savedata.luftdatenid, sizeof(savedata.luftdatenid), "%d", id);
     savedata.magic = SAVEDATA_MAGIC;
-    EEPROM.put(0, savedata);
-    EEPROM.commit();
+    save_config();
 }
 
 static void wifiManagerCallback(void)
@@ -76,8 +82,7 @@ static void wifiManagerCallback(void)
     savedata.magic = SAVEDATA_MAGIC;
 
     print("Saving data to EEPROM: luftdatenid='%s'\n", savedata.luftdatenid);
-    EEPROM.put(0, savedata);
-    EEPROM.commit();
+    save_config();
 }
 
 static void show_help(const cmd_t * cmds)
@@ -211,14 +216,23 @@ static int do_config(int argc, char *argv[])
     if ((argc > 1) && (strcmp(argv[1], "clear") == 0)) {
         print("Clearing config\n");
         memset(&savedata, 0, sizeof(savedata));
-        EEPROM.put(0, savedata);
-        EEPROM.commit();
+        save_config();
     }
 
-    if ((argc > 2) && (strcmp(argv[1], "set") == 0)) {
-        int id = atoi(argv[2]);
-        print("Setting id to '%d'\n", id);
-        save_luftdaten(id);
+    if ((argc > 3) && (strcmp(argv[1], "set") == 0)) {
+        char *item = argv[2];
+        char *value = argv[3];
+        if (strcmp(item, "id") == 0) {
+            int id = atoi(value);
+            print("Setting id to '%d'\n", id);
+            save_luftdaten(id);
+        }
+        if (strcmp(item, "rgb") == 0) {
+            bool rgb = (atoi(value) != 0);
+            print("Setting rgb to '%s'\n", rgb ? "true" : "false");
+            savedata.hasRgbLed = rgb;
+            save_config();
+        }
     }
 
     if ((argc > 1) && (strcmp(argv[1], "auto") == 0)) {
@@ -233,6 +247,7 @@ static int do_config(int argc, char *argv[])
     }
 
     print("config.luftdatenid = %s\n", savedata.luftdatenid);
+    print("config.rgb         = %s\n", savedata.hasRgbLed ? "true" : "false");
     print("config.magic       = %08X\n", savedata.magic);
 
     return 0;
@@ -422,7 +437,11 @@ void setup(void)
     EEPROM.get(0, savedata);
 
     // config led
-    FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
+    if (savedata.hasRgbLed) {
+        FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
+    } else {
+        FastLED.addLeds < WS2812B, DATA_PIN_1LED, GRB > (leds1, 1).setCorrection(TypicalSMD5050);
+    }
     FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
     animate();
 
