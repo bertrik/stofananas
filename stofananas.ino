@@ -41,7 +41,8 @@ static savedata_t savedata;
 
 static WiFiManager wifiManager;
 static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
-static WiFiClientSecure wifiClient;
+static WiFiClientSecure wifiClientSecure;
+static WiFiClient wifiClient;
 
 static CRGB leds1[1];
 static CRGB leds7[7];
@@ -138,24 +139,26 @@ static bool fetch_luftdaten(String url, String & response)
     HTTPClient httpClient;
     httpClient.begin(wifiClient, url);
     httpClient.setTimeout(LUFTDATEN_TIMEOUT_MS);
+    httpClient.setFollowRedirects(true);
+    httpClient.setRedirectLimit(3);
     int res = httpClient.GET();
     bool result = (res == HTTP_CODE_OK);
     response = result ? httpClient.getString() : httpClient.errorToString(res);
     httpClient.end();
 
-    Serial.printf("< %s\n", response.c_str());
+    Serial.printf("< %d: %s\n", res, response.c_str());
     return result;
 }
 
 static bool fetch_sensor(String luftdatenid, String & response)
 {
-    String url = "https://api.luftdaten.info/v1/sensor/" + luftdatenid + "/";
+    String url = "http://api.luftdaten.info/v1/sensor/" + luftdatenid + "/";
     return fetch_luftdaten(url, response);
 }
 
 static bool fetch_with_filter(String filter, String & response)
 {
-    String url = "https://api.luftdaten.info/v1/filter/" + filter;
+    String url = "http://api.luftdaten.info/v1/filter/" + filter;
     return fetch_luftdaten(url, response);
 }
 
@@ -310,9 +313,9 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     String json;
     serializeJson(doc, json);
 
-    // send JSON with POST, insecure because we can't verify the certificate
+    // send JSON with POST
     HTTPClient httpClient;
-    httpClient.begin(wifiClient, "https://location.services.mozilla.com/v1/geolocate?key=test");
+    httpClient.begin(wifiClientSecure, "https://location.services.mozilla.com/v1/geolocate?key=test");
     httpClient.addHeader("Content-Type", "application/json");
     int res = httpClient.POST(json);
     bool result = (res == HTTP_CODE_OK);
@@ -456,8 +459,8 @@ void setup(void)
         wifiManager.startConfigPortal("ESP-PMLAMP");
     }
 
-    // set insecure, we need https for some connection but can't verify the signatures
-    wifiClient.setInsecure();
+    // Set geo API wifi client insecure, the geo API requires https but we can't verify the signature
+    wifiClientSecure.setInsecure();
 
     // turn off LED
     set_led(CRGB::Black);
