@@ -134,18 +134,26 @@ static bool decode_json(String json, const char *item, float *value, float *lati
 
 static bool fetch_luftdaten(String url, String & response)
 {
-    Serial.printf("> %s\n", url.c_str());
-
     HTTPClient httpClient;
     httpClient.begin(wifiClient, url);
     httpClient.setTimeout(LUFTDATEN_TIMEOUT_MS);
     httpClient.setFollowRedirects(true);
     httpClient.setRedirectLimit(3);
-    int res = httpClient.GET();
+
+    // retry GET a few times until we get a valid HTTP code
+    int res = 0;
+    for (int i = 0; i < 3; i++) {
+        Serial.printf("> GET %s\n", url.c_str());
+        res = httpClient.GET();
+        if (res > 0) {
+            break;
+        }
+    }
+
+    // evaluate result
     bool result = (res == HTTP_CODE_OK);
     response = result ? httpClient.getString() : httpClient.errorToString(res);
     httpClient.end();
-
     Serial.printf("< %d: %s\n", res, response.c_str());
     return result;
 }
@@ -170,7 +178,7 @@ static bool find_closest(String json, float lat, float lon, int &id)
     }
     // find closest element for PIN 1
     id = -1;
-    float min_d2 = 1000;
+    float min_d = 1000;
     JsonArray root = doc.as < JsonArray > ();
     for (JsonObject meas:root) {
         JsonObject sensor = meas["sensor"];
@@ -182,9 +190,9 @@ static bool find_closest(String json, float lat, float lon, int &id)
 
             float dlon = cos(M_PI * lat / 180.0) * (longitude - lon);
             float dlat = (latitude - lat);
-            float d2 = dlon * dlon + dlat * dlat;
-            if (d2 < min_d2) {
-                min_d2 = d2;
+            float d = sqrt(dlon * dlon + dlat * dlat);
+            if (d < min_d) {
+                min_d = d;
                 id = sensor["id"];
             }
         }
@@ -342,21 +350,22 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
 
 static bool autoconfig(int &id)
 {
+    char filter[100];
+
     // geolocate
     float lat, lon, acc;
     if (!geolocate(lat, lon, acc)) {
         print("geolocate failed!\n");
         return false;
     }
-    // search in increasingly large area
-    float radius = 100.0;
-    for (int i = 0; i < 10; i++, radius *= 2) {
+
+    // search in increasingly larger area
+    for (float radius = 0.1; radius < 30; radius *= sqrt(2.0)) {
         // yield() in a loop, although it's not clear from the documentation if it's needed or not
         yield();
 
         // fetch nearby sensors
-        char filter[64];
-        snprintf(filter, sizeof(filter), "area=%.5f,%.5f,%.3f", lat, lon, radius / 1000);
+        snprintf(filter, sizeof(filter), "type=SDS011,PMS7003&area=%.5f,%.5f,%.3f", lat, lon, radius);
         String json;
         if (!fetch_with_filter(filter, json)) {
             print("fetch_with_filter failed!\n");
