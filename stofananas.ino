@@ -247,7 +247,7 @@ static int do_config(int argc, char *argv[])
     }
 
     if ((argc > 1) && (strcmp(argv[1], "auto") == 0)) {
-        print("Attempting autoconfig...");
+        print("Attempting autoconfig...\n");
         int id;
         if (autoconfig(id)) {
             print("OK\n");
@@ -264,7 +264,7 @@ static int do_config(int argc, char *argv[])
     return 0;
 }
 
-static CHSV interpolate(float pm, const pmlevel_t table[])
+static CRGB interpolate(float pm, const pmlevel_t table[])
 {
     int hue = 0;
     for (const pmlevel_t * pmlevel = table; pmlevel->pm >= 0; pmlevel++) {
@@ -275,7 +275,9 @@ static CHSV interpolate(float pm, const pmlevel_t table[])
         }
         hue = pmlevel->hue;
     }
-    return CHSV(hue, 255, 255);
+    CRGB rgb = CHSV(hue, 255, 255);
+    print("RGB=#%02X%02X%02X\n", rgb.r, rgb.g, rgb.b);
+    return rgb;
 }
 
 static int do_pm(int argc, char *argv[])
@@ -286,7 +288,6 @@ static int do_pm(int argc, char *argv[])
 
     float pm = atoi(argv[1]);
     set_led(interpolate(pm, pmlevels));
-//    print("pm=%d => color = #%02X%02X%02X\n", (int) pm, color.r, color.g, color.b);
 
     return 0;
 }
