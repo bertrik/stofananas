@@ -210,7 +210,7 @@ static int do_get(int argc, char *argv[])
         float lat, lon;
         if (decode_json(json, "P1", &pm, &lat, &lon)) {
             print("PM avg: %f, lat: %f, lon: %f\n", pm, lat, lon);
-            print("https://maps.luftdaten.info/#14/%.3f/%.3f\n", lat, lon);
+            print("https://maps.luftdaten.info/#14/%.4f/%.4f\n", lat, lon);
         } else {
             print("JSON decode failed!\n");
             return -1;
