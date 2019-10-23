@@ -11,11 +11,12 @@
 #include <FastLED.h>
 #include <ArduinoJson.h>
 
-#include "print.h"
 #include "cmdproc.h"
 #include "editline.h"
 
 #include <Arduino.h>
+
+#define printf Serial.printf
 
 // we send the colour to two sets of LEDs: a single LED on pin D2, a star of 7 LEDs on pin D4
 #define DATA_PIN_1LED   D2
@@ -82,14 +83,14 @@ static void wifiManagerCallback(void)
     strcpy(savedata.luftdatenid, luftdatenIdParam.getValue());
     savedata.magic = SAVEDATA_MAGIC;
 
-    print("Saving data to EEPROM: luftdatenid='%s'\n", savedata.luftdatenid);
+    printf("Saving data to EEPROM: luftdatenid='%s'\n", savedata.luftdatenid);
     save_config();
 }
 
 static void show_help(const cmd_t * cmds)
 {
     for (const cmd_t * cmd = cmds; cmd->cmd != NULL; cmd++) {
-        print("%10s: %s\n", cmd->name, cmd->help);
+        printf("%10s: %s\n", cmd->name, cmd->help);
     }
 }
 
@@ -143,7 +144,7 @@ static bool fetch_luftdaten(String url, String & response)
     // retry GET a few times until we get a valid HTTP code
     int res = 0;
     for (int i = 0; i < 3; i++) {
-        Serial.printf("> GET %s\n", url.c_str());
+        printf("> GET %s\n", url.c_str());
         res = httpClient.GET();
         if (res > 0) {
             break;
@@ -154,7 +155,7 @@ static bool fetch_luftdaten(String url, String & response)
     bool result = (res == HTTP_CODE_OK);
     response = result ? httpClient.getString() : httpClient.errorToString(res);
     httpClient.end();
-    Serial.printf("< %d: %s\n", res, response.c_str());
+    printf("< %d: %s\n", res, response.c_str());
     return result;
 }
 
@@ -209,14 +210,14 @@ static int do_get(int argc, char *argv[])
         float pm = 0.0;
         float lat, lon;
         if (decode_json(json, "P1", &pm, &lat, &lon)) {
-            print("PM avg: %f, lat: %f, lon: %f\n", pm, lat, lon);
-            print("https://maps.luftdaten.info/#14/%.4f/%.4f\n", lat, lon);
+            printf("PM avg: %f, lat: %f, lon: %f\n", pm, lat, lon);
+            printf("https://maps.luftdaten.info/#14/%.4f/%.4f\n", lat, lon);
         } else {
-            print("JSON decode failed!\n");
+            printf("JSON decode failed!\n");
             return -1;
         }
     } else {
-        print("GET failed\n");
+        printf("GET failed\n");
         return -2;
     }
     return 0;
@@ -225,7 +226,7 @@ static int do_get(int argc, char *argv[])
 static int do_config(int argc, char *argv[])
 {
     if ((argc > 1) && (strcmp(argv[1], "clear") == 0)) {
-        print("Clearing config\n");
+        printf("Clearing config\n");
         memset(&savedata, 0, sizeof(savedata));
         save_config();
     }
@@ -235,31 +236,31 @@ static int do_config(int argc, char *argv[])
         char *value = argv[3];
         if (strcmp(item, "id") == 0) {
             int id = atoi(value);
-            print("Setting id to '%d'\n", id);
+            printf("Setting id to '%d'\n", id);
             save_luftdaten(id);
         }
         if (strcmp(item, "rgb") == 0) {
             bool rgb = (atoi(value) != 0);
-            print("Setting rgb to '%s'\n", rgb ? "true" : "false");
+            printf("Setting rgb to '%s'\n", rgb ? "true" : "false");
             savedata.hasRgbLed = rgb;
             save_config();
         }
     }
 
     if ((argc > 1) && (strcmp(argv[1], "auto") == 0)) {
-        print("Attempting autoconfig...\n");
+        printf("Attempting autoconfig...\n");
         int id;
         if (autoconfig(id)) {
-            print("OK\n");
+            printf("OK\n");
             save_luftdaten(id);
         } else {
-            print("FAIL\n");
+            printf("FAIL\n");
         }
     }
 
-    print("config.luftdatenid = %s\n", savedata.luftdatenid);
-    print("config.rgb         = %s\n", savedata.hasRgbLed ? "true" : "false");
-    print("config.magic       = %08X\n", savedata.magic);
+    printf("config.luftdatenid = %s\n", savedata.luftdatenid);
+    printf("config.rgb         = %s\n", savedata.hasRgbLed ? "true" : "false");
+    printf("config.magic       = %08X\n", savedata.magic);
 
     return 0;
 }
@@ -276,7 +277,7 @@ static CRGB interpolate(float pm, const pmlevel_t table[])
         hue = pmlevel->hue;
     }
     CRGB rgb = CHSV(hue, 255, 255);
-    print("RGB=#%02X%02X%02X\n", rgb.r, rgb.g, rgb.b);
+    printf("RGB=#%02X%02X%02X\n", rgb.r, rgb.g, rgb.b);
     return rgb;
 }
 
@@ -295,9 +296,9 @@ static int do_pm(int argc, char *argv[])
 static bool geolocate(float &latitude, float &longitude, float &accuracy)
 {
     // scan for networks
-    Serial.print("Scanning...");
+    printf("Scanning...");
     int n = WiFi.scanNetworks();
-    Serial.printf("%d APs found...", n);
+    printf("%d APs found...", n);
 
     // create JSON request
     DynamicJsonDocument doc(4096);
@@ -317,7 +318,7 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
             break;
         }
     }
-    Serial.printf("%d APs used\n", num);
+    printf("%d APs used\n", num);
 
     String json;
     serializeJson(doc, json);
@@ -334,10 +335,10 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
         return false;
     }
     // parse response
-    Serial.println(response);
+    printf("%s\n", response.c_str());
     doc.clear();
     if (deserializeJson(doc, response) != DeserializationError::Ok) {
-        Serial.print("Failed to deserialize JSON!\n");
+        printf("Failed to deserialize JSON!\n");
         return false;
     }
 
@@ -356,7 +357,7 @@ static bool autoconfig(int &id)
     // geolocate
     float lat, lon, acc;
     if (!geolocate(lat, lon, acc)) {
-        print("geolocate failed!\n");
+        printf("geolocate failed!\n");
         return false;
     }
 
@@ -369,7 +370,7 @@ static bool autoconfig(int &id)
         snprintf(filter, sizeof(filter), "type=SDS011,PMS7003&area=%.5f,%.5f,%.3f", lat, lon, radius);
         String json;
         if (!fetch_with_filter(filter, json)) {
-            print("fetch_with_filter failed!\n");
+            printf("fetch_with_filter failed!\n");
             return false;
         }
         // find closest one
@@ -389,8 +390,8 @@ static int do_geolocate(int argc, char *argv[])
         return -1;
     }
 
-    Serial.printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
-    Serial.printf("https://google.com/maps/place/%f,%f\n", latitude, longitude);
+    printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
+    printf("https://google.com/maps/place/%f,%f\n", latitude, longitude);
     return 0;
 }
 
@@ -442,7 +443,7 @@ static void animate(void)
 void setup(void)
 {
     Serial.begin(115200);
-    print("\nESP-STOFANANAS\n");
+    printf("\nESP-STOFANANAS\n");
     EditInit(line, sizeof(line));
 
     // init config
@@ -459,7 +460,7 @@ void setup(void)
     animate();
 
     // connect to wifi
-    print("Starting WIFI manager ...\n");
+    printf("Starting WIFI manager ...\n");
     wifiManager.addParameter(&luftdatenIdParam);
     wifiManager.setSaveConfigCallback(wifiManagerCallback);
     wifiManager.setConfigPortalTimeout(120);
@@ -494,18 +495,18 @@ void loop(void)
                 num_fetch_failures = 0;
                 if (decode_json(json, "P1", &pm, &lat, &lon)) {
                     num_decode_failures = 0;
-                    print("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
+                    printf("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
                     set_led(interpolate(pm, pmlevels));
                 } else {
                     if (++num_decode_failures >= 10) {
-                        print("Too many decode failures, reconfiguring ...");
+                        printf("Too many decode failures, reconfiguring ...");
                         strcpy(savedata.luftdatenid, "");
                     }
                 }
             } else {
                 // reboot if too many fetch failures occur
                 if (++num_fetch_failures >= 10) {
-                    print("Too many failures, rebooting ...");
+                    printf("Too many failures, rebooting ...");
                     ESP.restart();
                 }
             }
@@ -514,7 +515,7 @@ void loop(void)
             int id;
             if (autoconfig(id)) {
                 save_luftdaten(id);
-                print("Autoconfig set %d\n", id);
+                printf("Autoconfig set %d\n", id);
                 // trigger fetch
                 period_last = -1;
             }
@@ -526,25 +527,25 @@ void loop(void)
     if (Serial.available()) {
         char c;
         haveLine = EditLine(Serial.read(), &c);
-        Serial.print(c);
+        Serial.write(c);
     }
     if (haveLine) {
         int result = cmd_process(commands, line);
         switch (result) {
         case CMD_OK:
-            print("OK\n");
+            printf("OK\n");
             break;
         case CMD_NO_CMD:
             break;
         case CMD_UNKNOWN:
-            print("Unknown command, available commands:\n");
+            printf("Unknown command, available commands:\n");
             show_help(commands);
             break;
         default:
-            print("%d\n", result);
+            printf("%d\n", result);
             break;
         }
-        print(">");
+        printf(">");
     }
 }
 
