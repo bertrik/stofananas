@@ -96,7 +96,8 @@ static void show_help(const cmd_t * cmds)
 
 static int do_help(int argc, char *argv[]);
 
-static bool decode_json(String json, const char *item, float *value, float *latitude, float *longitude)
+static bool decode_json(String json, const char *item, float *value, float *latitude,
+                        float *longitude)
 {
     DynamicJsonDocument doc(4096);
     if (deserializeJson(doc, json) != DeserializationError::Ok) {
@@ -325,7 +326,8 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
 
     // send JSON with POST
     HTTPClient httpClient;
-    httpClient.begin(wifiClientSecure, "https://location.services.mozilla.com/v1/geolocate?key=test");
+    httpClient.begin(wifiClientSecure,
+                     "https://location.services.mozilla.com/v1/geolocate?key=test");
     httpClient.addHeader("Content-Type", "application/json");
     int res = httpClient.POST(json);
     bool result = (res == HTTP_CODE_OK);
@@ -360,14 +362,14 @@ static bool autoconfig(int &id)
         printf("geolocate failed!\n");
         return false;
     }
-
     // search in increasingly larger area
     for (float radius = 0.1; radius < 30; radius *= sqrt(2.0)) {
         // yield() in a loop, although it's not clear from the documentation if it's needed or not
         yield();
 
         // fetch nearby sensors
-        snprintf(filter, sizeof(filter), "type=SDS011,PMS7003&area=%.5f,%.5f,%.3f", lat, lon, radius);
+        snprintf(filter, sizeof(filter), "type=SDS011,PMS7003&area=%.5f,%.5f,%.3f", lat, lon,
+                 radius);
         String json;
         if (!fetch_with_filter(filter, json)) {
             printf("fetch_with_filter failed!\n");
@@ -521,7 +523,6 @@ void loop(void)
             }
         }
     }
-
     // parse command line
     bool haveLine = false;
     if (Serial.available()) {
@@ -548,4 +549,3 @@ void loop(void)
         printf(">");
     }
 }
-
