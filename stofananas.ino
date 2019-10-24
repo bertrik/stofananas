@@ -368,7 +368,7 @@ static bool autoconfig(int &id)
         yield();
 
         // fetch nearby sensors
-        snprintf(filter, sizeof(filter), "type=SDS011,PMS7003&area=%.5f,%.5f,%.3f", lat, lon,
+        snprintf(filter, sizeof(filter), "type=HPM,SDS011,PMS7003&area=%.5f,%.5f,%.3f", lat, lon,
                  radius);
         String json;
         if (!fetch_with_filter(filter, json)) {
