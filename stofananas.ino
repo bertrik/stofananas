@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include <EEPROM.h>
 
@@ -26,6 +27,8 @@
 
 #define POLL_INTERVAL           300000
 #define LUFTDATEN_TIMEOUT_MS    10000
+
+#define KM_PER_DEGREE   40075.0/360.0
 
 typedef struct {
     char luftdatenid[16];
@@ -172,34 +175,36 @@ static bool fetch_with_filter(String filter, String & response)
     return fetch_luftdaten(url, response);
 }
 
-static bool find_closest(String json, float lat, float lon, int &id)
+static bool find_closest(String json, float lat, float lon, int &closest_id)
 {
     DynamicJsonDocument doc(10000);
     if (deserializeJson(doc, json) != DeserializationError::Ok) {
         return false;
     }
     // find closest element for PIN 1
-    id = -1;
-    float min_d = 1000;
+    closest_id = -1;
+    float closest_d = 1000;
     JsonArray root = doc.as < JsonArray > ();
     for (JsonObject meas:root) {
         JsonObject sensor = meas["sensor"];
+        int id = sensor["id"];
         int pin = sensor["pin"];
         if (pin == 1) {
             JsonObject location = meas["location"];
             float latitude = location["latitude"];
             float longitude = location["longitude"];
 
-            float dlon = cos(M_PI * lat / 180.0) * (longitude - lon);
-            float dlat = (latitude - lat);
+            float dlon = KM_PER_DEGREE * cos(M_PI * lat / 180.0) * (longitude - lon);
+            float dlat = KM_PER_DEGREE * (latitude - lat);
             float d = sqrt(dlon * dlon + dlat * dlat);
-            if (d < min_d) {
-                min_d = d;
-                id = sensor["id"];
+            printf("* %5d: %.3f km\n", id, d);
+            if (d < closest_d) {
+                closest_d = d;
+                closest_id = id;
             }
         }
     }
-    return (id > 0);
+    return (closest_id > 0);
 }
 
 static int do_get(int argc, char *argv[])
@@ -355,6 +360,9 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
 static bool autoconfig(int &id)
 {
     char filter[100];
+
+    // white/gray LED during autoconfig
+    set_led(CRGB::Gray);
 
     // geolocate
     float lat, lon, acc;
