@@ -162,13 +162,13 @@ static bool fetch_luftdaten(String url, String & response)
 
 static bool fetch_sensor(String luftdatenid, String & response)
 {
-    String url = "http://api.sensor.community/airrohr/v1/sensor/" + luftdatenid + "/";
+    String url = "http://data.sensor.community/airrohr/v1/sensor/" + luftdatenid + "/";
     return fetch_luftdaten(url, response);
 }
 
 static bool fetch_with_filter(String filter, String & response)
 {
-    String url = "http://api.sensor.community/airrohr/v1/filter/" + filter;
+    String url = "http://data.sensor.community/airrohr/v1/filter/" + filter;
     return fetch_luftdaten(url, response);
 }
 
