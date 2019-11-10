@@ -470,6 +470,12 @@ void setup(void)
     FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
     animate();
 
+    // Set geo API wifi client insecure, the geo API requires https but we can't verify the signature
+    wifiClientSecure.setInsecure();
+
+    // indicate white during config
+    set_led(CRGB::Gray);
+
     // connect to wifi
     printf("Starting WIFI manager ...\n");
     wifiManager.addParameter(&luftdatenIdParam);
@@ -480,12 +486,6 @@ void setup(void)
     } else {
         wifiManager.startConfigPortal("ESP-PMLAMP");
     }
-
-    // Set geo API wifi client insecure, the geo API requires https but we can't verify the signature
-    wifiClientSecure.setInsecure();
-
-    // turn off LED
-    set_led(CRGB::Black);
 }
 
 void loop(void)
@@ -558,3 +558,4 @@ void loop(void)
         printf(">");
     }
 }
+
