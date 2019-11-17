@@ -50,8 +50,10 @@ static WiFiClient wifiClient;
 
 static CRGB leds1[1];
 static CRGB leds7[7];
-static CHSV color;
+static CRGB color;
 static char line[120];
+static int num_fetch_failures = 0;
+static int num_decode_failures = 0;
 
 // see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
 static const pmlevel_t pmlevels[] = {
@@ -65,7 +67,10 @@ static const pmlevel_t pmlevels[] = {
 
 static void set_led(CRGB crgb)
 {
-    FastLED.showColor(crgb);
+    // remember last color
+    color = crgb;
+    // update on the hardware
+    FastLED.showColor(color);
 }
 
 static void save_config(void)
@@ -412,6 +417,18 @@ static int do_reboot(int argc, char *argv[])
     return 0;
 }
 
+static int do_error(int argc, char *argv[])
+{
+    if (argc > 1) {
+        num_fetch_failures = atoi(argv[1]);
+    }
+    if (argc > 2) {
+        num_decode_failures = atoi(argv[2]);
+    }
+    printf("fetch failures:%d, decode failures:%d\n", num_fetch_failures, num_decode_failures);
+    return 0;
+}
+
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "GET the PM10 value from Luftdaten" },
@@ -419,6 +436,7 @@ const cmd_t commands[] = {
     { "pm", do_pm, "Simulate PM value and update the LED" },
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
     { "reboot", do_reboot, "Reboot" },
+    { "error", do_error, "[fetch] [decode] Simulate a fetch/decode error" },
     { NULL, NULL, NULL }
 };
 
@@ -490,9 +508,6 @@ void setup(void)
 
 void loop(void)
 {
-    static int num_fetch_failures = 0;
-    static int num_decode_failures = 0;
-
     // fetch a new value every POLL_INTERVAL
     static unsigned int period_last = -1;
     unsigned int period = millis() / POLL_INTERVAL;
@@ -532,6 +547,15 @@ void loop(void)
             }
         }
     }
+
+    // flash LED when there is an error
+    if ((num_fetch_failures > 0) || (num_decode_failures > 0)) {
+        bool flash = (millis() / 500) % 2;
+
+        // update on the hardware
+        FastLED.showColor(color, flash ? 200 : 255);
+    }
+
     // parse command line
     bool haveLine = false;
     if (Serial.available()) {
