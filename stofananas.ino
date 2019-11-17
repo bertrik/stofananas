@@ -429,6 +429,17 @@ static int do_error(int argc, char *argv[])
     return 0;
 }
 
+static int do_led(int argc, char *argv[])
+{
+    if (argc < 2) {
+        return -1;
+    }
+    int rgb = strtoul(argv[1], NULL, 16);
+    set_led(rgb);
+
+    return 0;
+}
+
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "GET the PM10 value from Luftdaten" },
@@ -437,6 +448,7 @@ const cmd_t commands[] = {
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
     { "reboot", do_reboot, "Reboot" },
     { "error", do_error, "[fetch] [decode] Simulate a fetch/decode error" },
+    { "led", do_led, "<RRGGBB> Set the LED to a specific value (hex)" },
     { NULL, NULL, NULL }
 };
 
