@@ -99,8 +99,8 @@ static void show_help(const cmd_t * cmds)
 
 static int do_help(int argc, char *argv[]);
 
-static bool decode_json(String json, const char *item, float *value, float *latitude,
-                        float *longitude)
+static bool decode_json(String json, const char *item, float &value, float &latitude,
+                        float &longitude)
 {
     DynamicJsonDocument doc(4096);
     if (deserializeJson(doc, json) != DeserializationError::Ok) {
@@ -125,12 +125,12 @@ static bool decode_json(String json, const char *item, float *value, float *lati
         }
         // get the WGS84 location
         JsonObject location = meas["location"];
-        *latitude = location["latitude"];
-        *longitude = location["longitude"];
+        latitude = location["latitude"];
+        longitude = location["longitude"];
     }
 
     if (meas_num > 0) {
-        *value = meas_sum / meas_num;
+        value = meas_sum / meas_num;
         return true;
     }
 
@@ -215,7 +215,7 @@ static int do_get(int argc, char *argv[])
         // decode it
         float pm = 0.0;
         float lat, lon;
-        if (decode_json(json, "P1", &pm, &lat, &lon)) {
+        if (decode_json(json, "P1", pm, lat, lon)) {
             printf("PM avg: %f, lat: %f, lon: %f\n", pm, lat, lon);
             printf("https://maps.luftdaten.info/#15/%.4f/%.4f\n", lat, lon);
             set_led(interpolate(pm, pmlevels));
@@ -504,7 +504,7 @@ void loop(void)
             String json;
             if (fetch_sensor(savedata.luftdatenid, json)) {
                 num_fetch_failures = 0;
-                if (decode_json(json, "P1", &pm, &lat, &lon)) {
+                if (decode_json(json, "P1", pm, lat, lon)) {
                     num_decode_failures = 0;
                     printf("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
                     set_led(interpolate(pm, pmlevels));
