@@ -117,9 +117,9 @@ static bool decode_json(String json, const char *item, float *value, float *lati
         JsonArray sensordatavalues = meas["sensordatavalues"];
         for (JsonObject sensordatavalue:sensordatavalues) {
             const char *value_type = sensordatavalue["value_type"];
-            float value = sensordatavalue["value"];
+            float val = sensordatavalue["value"];
             if (strcmp(item, value_type) == 0) {
-                meas_sum += value;
+                meas_sum += val;
                 meas_num++;
             }
         }
