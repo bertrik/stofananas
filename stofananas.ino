@@ -218,12 +218,12 @@ static int do_get(int argc, char *argv[])
     String json;
     if (fetch_sensor(savedata.luftdatenid, json)) {
         // decode it
-        float pm = 0.0;
+        float pm10 = 0.0;
         float lat, lon;
-        if (decode_json(json, "P1", pm, lat, lon)) {
-            printf("PM avg: %f, lat: %f, lon: %f\n", pm, lat, lon);
+        if (decode_json(json, "P1", pm10, lat, lon)) {
+            printf("PM10 avg: %f, lat: %f, lon: %f\n", pm10, lat, lon);
             printf("https://maps.luftdaten.info/#15/%.4f/%.4f\n", lat, lon);
-            set_led(interpolate(pm, pmlevels));
+            set_led(interpolate(pm10, pmlevels));
         } else {
             printf("JSON decode failed!\n");
             return -1;
@@ -525,16 +525,16 @@ void loop(void)
     unsigned int period = millis() / POLL_INTERVAL;
     if (period != period_last) {
         period_last = period;
-        float pm, lat, lon;
+        float pm10, lat, lon;
         if (strlen(savedata.luftdatenid) > 0) {
             // fetch and decode JSON
             String json;
             if (fetch_sensor(savedata.luftdatenid, json)) {
                 num_fetch_failures = 0;
-                if (decode_json(json, "P1", pm, lat, lon)) {
+                if (decode_json(json, "P1", pm10, lat, lon)) {
                     num_decode_failures = 0;
-                    printf("PM=%f, lat=%f, lon=%f\n", pm, lat, lon);
-                    set_led(interpolate(pm, pmlevels));
+                    printf("PM10=%f, lat=%f, lon=%f\n", pm10, lat, lon);
+                    set_led(interpolate(pm10, pmlevels));
                 } else {
                     if (++num_decode_failures >= 10) {
                         printf("Too many decode failures, reconfiguring ...");
