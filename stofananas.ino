@@ -58,10 +58,10 @@ static int num_decode_failures = 0;
 // see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
 static const pmlevel_t pmlevels[] = {
     { 0, 160 },                 // blue
-    { 25, 96 },                 // green
-    { 50, 64 },                 // yellow
-    { 100, 0 },                 // red
-    { 200, -32 },               // pink
+    { 15, 96 },                 // green
+    { 30, 64 },                 // yellow
+    { 60, 0 },                  // red
+    { 120, -32 },               // pink
     { -1, 0 }                   // END
 };
 
