@@ -536,14 +536,14 @@ void loop(void)
                     printf("PM10=%f, lat=%f, lon=%f\n", pm10, lat, lon);
                     set_led(interpolate(pm10, pmlevels));
                 } else {
-                    if (++num_decode_failures >= 10) {
-                        printf("Too many decode failures, reconfiguring ...");
-                        strcpy(savedata.luftdatenid, "");
-                    }
+                    num_decode_failures++;
+                    printf("Decode failure %d\n", num_decode_failures);
                 }
             } else {
+                num_fetch_failures++;
+                printf("Fetch failure %d\n", num_fetch_failures);
                 // reboot if too many fetch failures occur
-                if (++num_fetch_failures >= 10) {
+                if (num_fetch_failures > 10) {
                     printf("Too many failures, rebooting ...");
                     ESP.restart();
                 }
