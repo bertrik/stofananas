@@ -532,12 +532,12 @@ void loop(void)
     unsigned int period = millis() / POLL_INTERVAL;
     if (period != period_last) {
         period_last = period;
-        float pm10, lat, lon;
         if (strlen(savedata.luftdatenid) > 0) {
             // fetch and decode JSON
             String json;
             if (fetch_sensor(savedata.luftdatenid, json)) {
                 num_fetch_failures = 0;
+                float pm10, lat, lon;
                 if (decode_json(json, "P1", pm10, lat, lon)) {
                     num_decode_failures = 0;
                     printf("PM10=%f, lat=%f, lon=%f\n", pm10, lat, lon);
