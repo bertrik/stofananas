@@ -214,9 +214,16 @@ static bool find_closest(String json, float lat, float lon, int &closest_id)
 
 static int do_get(int argc, char *argv[])
 {
+    char *id;
+    if (argc > 1) {
+        id = argv[1];
+    } else {
+        id = savedata.luftdatenid;
+    }
+
     // perform the GET
     String json;
-    if (fetch_sensor(savedata.luftdatenid, json)) {
+    if (fetch_sensor(id, json)) {
         // decode it
         float pm10 = 0.0;
         float lat, lon;
@@ -442,7 +449,7 @@ static int do_led(int argc, char *argv[])
 
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
-    { "get", do_get, "GET the PM10 value from Luftdaten" },
+    { "get", do_get, "[id] GET the PM10 value from Luftdaten" },
     { "config", do_config, "[auto|clear|set] Manipulate configuration of Luftdaten id" },
     { "pm", do_pm, "Simulate PM value and update the LED" },
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
