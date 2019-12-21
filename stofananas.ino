@@ -75,6 +75,7 @@ static void set_led(CRGB crgb)
 
 static void save_config(void)
 {
+    savedata.magic = SAVEDATA_MAGIC;
     EEPROM.put(0, savedata);
     EEPROM.commit();
 }
@@ -82,14 +83,12 @@ static void save_config(void)
 static void save_luftdaten(int id)
 {
     snprintf(savedata.luftdatenid, sizeof(savedata.luftdatenid), "%d", id);
-    savedata.magic = SAVEDATA_MAGIC;
     save_config();
 }
 
 static void wifiManagerCallback(void)
 {
     strcpy(savedata.luftdatenid, luftdatenIdParam.getValue());
-    savedata.magic = SAVEDATA_MAGIC;
 
     printf("Saving data to EEPROM: luftdatenid='%s'\n", savedata.luftdatenid);
     save_config();
@@ -254,9 +253,9 @@ static int do_config(int argc, char *argv[])
         char *item = argv[2];
         char *value = argv[3];
         if (strcmp(item, "id") == 0) {
-            int id = atoi(value);
-            printf("Setting id to '%d'\n", id);
-            save_luftdaten(id);
+            printf("Setting id to '%s'\n", value);
+            strcpy(savedata.luftdatenid, value);
+            save_config();
         }
         if (strcmp(item, "rgb") == 0) {
             bool rgb = (atoi(value) != 0);
@@ -271,7 +270,6 @@ static int do_config(int argc, char *argv[])
         int id;
         if (autoconfig(id)) {
             printf("OK\n");
-            save_luftdaten(id);
         } else {
             printf("FAIL\n");
         }
@@ -559,8 +557,8 @@ void loop(void)
             // try to autoconfig
             int id;
             if (autoconfig(id)) {
-                save_luftdaten(id);
-                printf("Autoconfig set %d\n", id);
+                printf("Autoconfig determined %d\n", id);
+                snprintf(savedata.luftdatenid, sizeof(savedata.luftdatenid), "%d", id);
                 // trigger fetch
                 period_last = -1;
             }
