@@ -239,7 +239,7 @@ static int do_get(int argc, char *argv[])
         printf("GET failed\n");
         return -2;
     }
-    return 0;
+    return CMD_OK;
 }
 
 static int do_config(int argc, char *argv[])
@@ -281,7 +281,7 @@ static int do_config(int argc, char *argv[])
     printf("config.rgb         = %s\n", savedata.hasRgbLed ? "true" : "false");
     printf("config.magic       = %08X\n", savedata.magic);
 
-    return 0;
+    return CMD_OK;
 }
 
 static CRGB interpolate(float pm, const pmlevel_t table[])
@@ -309,7 +309,7 @@ static int do_pm(int argc, char *argv[])
     float pm = atoi(argv[1]);
     set_led(interpolate(pm, pmlevels));
 
-    return 0;
+    return CMD_OK;
 }
 
 static bool geolocate(float &latitude, float &longitude, float &accuracy)
@@ -415,13 +415,13 @@ static int do_geolocate(int argc, char *argv[])
 
     printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
     printf("https://google.com/maps/place/%f,%f\n", latitude, longitude);
-    return 0;
+    return CMD_OK;
 }
 
 static int do_reboot(int argc, char *argv[])
 {
     ESP.restart();
-    return 0;
+    return CMD_OK;
 }
 
 static int do_error(int argc, char *argv[])
@@ -433,7 +433,7 @@ static int do_error(int argc, char *argv[])
         num_decode_failures = atoi(argv[2]);
     }
     printf("fetch failures:%d, decode failures:%d\n", num_fetch_failures, num_decode_failures);
-    return 0;
+    return CMD_OK;
 }
 
 static int do_led(int argc, char *argv[])
@@ -444,7 +444,7 @@ static int do_led(int argc, char *argv[])
     int rgb = strtoul(argv[1], NULL, 16);
     set_led(rgb);
 
-    return 0;
+    return CMD_OK;
 }
 
 const cmd_t commands[] = {
@@ -462,7 +462,7 @@ const cmd_t commands[] = {
 static int do_help(int argc, char *argv[])
 {
     show_help(commands);
-    return 0;
+    return CMD_OK;
 }
 
 static void animate(void)
