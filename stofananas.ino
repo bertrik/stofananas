@@ -80,12 +80,6 @@ static void save_config(void)
     EEPROM.commit();
 }
 
-static void save_luftdaten(int id)
-{
-    snprintf(savedata.luftdatenid, sizeof(savedata.luftdatenid), "%d", id);
-    save_config();
-}
-
 static void wifiManagerCallback(void)
 {
     strcpy(savedata.luftdatenid, luftdatenIdParam.getValue());
