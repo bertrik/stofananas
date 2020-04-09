@@ -506,7 +506,7 @@ void setup(void)
     set_led(CRGB::Gray);
 
     // connect to wifi
-    printf("Starting WIFI manager ...\n");
+    printf("Starting WIFI manager (%s)...\n", WiFi.SSID().c_str());
     wifiManager.addParameter(&luftdatenIdParam);
     wifiManager.setSaveConfigCallback(wifiManagerCallback);
     wifiManager.setConfigPortalTimeout(120);
