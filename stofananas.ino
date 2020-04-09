@@ -443,7 +443,7 @@ const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "[id] GET the PM10 value from Luftdaten" },
     { "config", do_config, "[auto|clear|set] Manipulate configuration of Luftdaten id" },
-    { "pm", do_pm, "Simulate PM value and update the LED" },
+    { "pm", do_pm, "<pm10> Simulate PM10 value and update the LED" },
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
     { "reboot", do_reboot, "Reboot" },
     { "error", do_error, "[fetch] [decode] Simulate a fetch/decode error" },
