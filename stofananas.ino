@@ -222,7 +222,7 @@ static int do_get(int argc, char *argv[])
         float lat, lon;
         if (decode_json(json, "P1", pm10, lat, lon)) {
             printf("PM10 avg: %f, lat: %f, lon: %f\n", pm10, lat, lon);
-            printf("https://maps.luftdaten.info/#15/%.4f/%.4f\n", lat, lon);
+            printf("https://maps.sensor.community/#15/%.4f/%.4f\n", lat, lon);
             set_led(interpolate(pm10, pmlevels));
         } else {
             printf("JSON decode failed!\n");
