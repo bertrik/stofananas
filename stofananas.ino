@@ -140,7 +140,7 @@ static bool fetch_luftdaten(String url, String & response)
     HTTPClient httpClient;
     httpClient.begin(wifiClient, url);
     httpClient.setTimeout(LUFTDATEN_TIMEOUT_MS);
-    httpClient.setFollowRedirects(true);
+    httpClient.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     httpClient.setRedirectLimit(3);
 
     // retry GET a few times until we get a valid HTTP code
