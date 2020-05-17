@@ -375,14 +375,22 @@ static bool autoconfig(int &id)
         printf("geolocate failed!\n");
         return false;
     }
+
+    float dlon = KM_PER_DEGREE * cos(M_PI * lat / 180.0);
+    float dlat = KM_PER_DEGREE;
+
     // search in increasingly larger area
     for (float radius = 0.1; radius < 30; radius *= sqrt(2.0)) {
         // yield() in a loop, although it's not clear from the documentation if it's needed or not
         yield();
 
         // fetch nearby sensors
-        snprintf(filter, sizeof(filter), "type=HPM,SDS011,PMS7003&area=%.5f,%.5f,%.3f", lat, lon,
-                 radius);
+        float minlat = lat - radius / dlat;
+        float maxlat = lat + radius / dlat;
+        float minlon = lon - radius / dlon;
+        float maxlon = lon + radius / dlon;
+        snprintf(filter, sizeof(filter), "type=HPM,SDS011,PMS7003&box=%.5f,%.5f,%.5f,%.5f", 
+                 minlat, minlon, maxlat, maxlon);
         String json;
         if (!fetch_with_filter(filter, json)) {
             printf("fetch_with_filter failed!\n");
