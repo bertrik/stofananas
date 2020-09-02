@@ -45,8 +45,7 @@ static savedata_t savedata;
 
 static WiFiManager wifiManager;
 static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
-static WiFiClientSecure wifiClientSecure;
-static WiFiClient wifiClient;
+static WiFiClientSecure wifiClient;
 
 static CRGB leds1[1];
 static CRGB leds7[7];
@@ -163,13 +162,13 @@ static bool fetch_luftdaten(String url, String & response)
 
 static bool fetch_sensor(String luftdatenid, String & response)
 {
-    String url = "http://data.sensor.community/airrohr/v1/sensor/" + luftdatenid + "/";
+    String url = "https://data.sensor.community/airrohr/v1/sensor/" + luftdatenid + "/";
     return fetch_luftdaten(url, response);
 }
 
 static bool fetch_with_filter(String filter, String & response)
 {
-    String url = "http://data.sensor.community/airrohr/v1/filter/" + filter;
+    String url = "https://data.sensor.community/airrohr/v1/filter/" + filter;
     return fetch_luftdaten(url, response);
 }
 
@@ -336,7 +335,7 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
 
     // send JSON with POST
     HTTPClient httpClient;
-    httpClient.begin(wifiClientSecure,
+    httpClient.begin(wifiClient,
                      "https://location.services.mozilla.com/v1/geolocate?key=test");
     httpClient.addHeader("Content-Type", "application/json");
     int res = httpClient.POST(json);
@@ -508,7 +507,7 @@ void setup(void)
     animate();
 
     // Set geo API wifi client insecure, the geo API requires https but we can't verify the signature
-    wifiClientSecure.setInsecure();
+    wifiClient.setInsecure();
 
     // indicate white during config
     set_led(CRGB::Gray);
