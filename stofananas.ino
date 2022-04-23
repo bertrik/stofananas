@@ -26,12 +26,8 @@
 #define SAVEDATA_MAGIC  0xCAFEBABE
 
 #define POLL_INTERVAL           300000
-#define LUFTDATEN_TIMEOUT_MS    20000
-
-#define KM_PER_DEGREE   40075.0/360.0
 
 typedef struct {
-    char luftdatenid[16];
     bool hasRgbLed;
     uint32_t magic;
 } savedata_t;
@@ -44,15 +40,17 @@ typedef struct {
 static savedata_t savedata;
 
 static WiFiManager wifiManager;
-static WiFiManagerParameter luftdatenIdParam("luftdatenid", "Luftdaten ID", "", sizeof(savedata_t));
-static WiFiClientSecure wifiClient;
+static WiFiClient wifiClient;
+static WiFiClientSecure secureWifiClient;
+static char espid[64];
 
 static CRGB leds1[1];
 static CRGB leds7[7];
 static CRGB color;
 static char line[120];
 static int num_fetch_failures = 0;
-static int num_decode_failures = 0;
+static float latitude, longitude, accuracy;
+static bool have_location = false;
 
 // see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
 static const pmlevel_t pmlevels[] = {
@@ -79,14 +77,6 @@ static void save_config(void)
     EEPROM.commit();
 }
 
-static void wifiManagerCallback(void)
-{
-    strcpy(savedata.luftdatenid, luftdatenIdParam.getValue());
-
-    printf("Saving data to EEPROM: luftdatenid='%s'\n", savedata.luftdatenid);
-    save_config();
-}
-
 static void show_help(const cmd_t * cmds)
 {
     for (const cmd_t * cmd = cmds; cmd->cmd != NULL; cmd++) {
@@ -96,61 +86,15 @@ static void show_help(const cmd_t * cmds)
 
 static int do_help(int argc, char *argv[]);
 
-static bool decode_json(String json, const char *item, float &value, float &latitude,
-                        float &longitude)
-{
-    DynamicJsonDocument doc(4096);
-    if (deserializeJson(doc, json) != DeserializationError::Ok) {
-        return false;
-    }
-
-    int meas_num = 0;
-    float meas_sum = 0.0;
-
-    // iterate over all measurements
-    JsonArray root = doc.as < JsonArray > ();
-    for (JsonObject meas:root) {
-        // get the particulate matter measurement item
-        JsonArray sensordatavalues = meas["sensordatavalues"];
-        for (JsonObject sensordatavalue:sensordatavalues) {
-            const char *value_type = sensordatavalue["value_type"];
-            float val = sensordatavalue["value"];
-            if (strcmp(item, value_type) == 0) {
-                meas_sum += val;
-                meas_num++;
-            }
-        }
-        // get the WGS84 location
-        JsonObject location = meas["location"];
-        latitude = location["latitude"];
-        longitude = location["longitude"];
-    }
-
-    if (meas_num > 0) {
-        value = meas_sum / meas_num;
-        return true;
-    }
-
-    return false;
-}
-
-static bool fetch_luftdaten(String url, String & response)
+static bool fetch_url(const char *host, int port, const char *path, String & response)
 {
     HTTPClient httpClient;
-    httpClient.begin(wifiClient, url);
-    httpClient.setTimeout(LUFTDATEN_TIMEOUT_MS);
-    httpClient.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-    httpClient.setRedirectLimit(3);
+    httpClient.begin(wifiClient, host, port, path, false);
+    httpClient.setTimeout(20000);
+    httpClient.setUserAgent(espid);
 
-    // retry GET a few times until we get a valid HTTP code
-    int res = 0;
-    for (int i = 0; i < 3; i++) {
-        printf("> GET %s\n", url.c_str());
-        res = httpClient.GET();
-        if (res > 0) {
-            break;
-        }
-    }
+    printf("> GET http://%s:%d%s\n", host, port, path);
+    int res = httpClient.GET();
 
     // evaluate result
     bool result = (res == HTTP_CODE_OK);
@@ -160,76 +104,32 @@ static bool fetch_luftdaten(String url, String & response)
     return result;
 }
 
-static bool fetch_sensor(String luftdatenid, String & response)
+static bool fetch_pm(double latitude, double longitude, const char *item, double &value)
 {
-    String url = "https://data.sensor.community/airrohr/v1/sensor/" + luftdatenid + "/";
-    return fetch_luftdaten(url, response);
-}
+    DynamicJsonDocument doc(1024);
+    String response;
+    char path[128];
 
-static bool fetch_with_filter(String filter, String & response)
-{
-    String url = "https://data.sensor.community/airrohr/v1/filter/" + filter;
-    return fetch_luftdaten(url, response);
-}
-
-static bool find_closest(String json, float lat, float lon, int &closest_id)
-{
-    DynamicJsonDocument doc(10000);
-    if (deserializeJson(doc, json) != DeserializationError::Ok) {
-        return false;
-    }
-    // find closest element for PIN 1
-    closest_id = -1;
-    float closest_d = 1000;
-    JsonArray root = doc.as < JsonArray > ();
-    for (JsonObject meas:root) {
-        JsonObject sensor = meas["sensor"];
-        int id = sensor["id"];
-        int pin = sensor["pin"];
-        if (pin == 1) {
-            JsonObject location = meas["location"];
-            float latitude = location["latitude"];
-            float longitude = location["longitude"];
-
-            float dlon = KM_PER_DEGREE * cos(M_PI * lat / 180.0) * (longitude - lon);
-            float dlat = KM_PER_DEGREE * (latitude - lat);
-            float d = sqrt(dlon * dlon + dlat * dlat);
-            printf("* %5d: %.3f km\n", id, d);
-            if (d < closest_d) {
-                closest_d = d;
-                closest_id = id;
-            }
+    // fetch
+    sprintf(path, "/pm/%.6f/%.6f", latitude, longitude);
+    if (fetch_url("stofradar.nl", 9000, path, response)) {
+        // decode
+        if (deserializeJson(doc, response) == DeserializationError::Ok) {
+            value = doc[item];
+            return true;
         }
     }
-    return (closest_id > 0);
+    return false;
 }
 
 static int do_get(int argc, char *argv[])
 {
-    char *id;
-    if (argc > 1) {
-        id = argv[1];
+    double pm2_5;
+    if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
+        set_led(interpolate(pm2_5, pmlevels));
     } else {
-        id = savedata.luftdatenid;
-    }
-
-    // perform the GET
-    String json;
-    if (fetch_sensor(id, json)) {
-        // decode it
-        float pm10 = 0.0;
-        float lat, lon;
-        if (decode_json(json, "P1", pm10, lat, lon)) {
-            printf("PM10 avg: %f, lat: %f, lon: %f\n", pm10, lat, lon);
-            printf("https://maps.sensor.community/#15/%.4f/%.4f\n", lat, lon);
-            set_led(interpolate(pm10, pmlevels));
-        } else {
-            printf("JSON decode failed!\n");
-            return -1;
-        }
-    } else {
-        printf("GET failed\n");
-        return -2;
+        printf("fetch_pm failed!\n");
+        return -1;
     }
     return CMD_OK;
 }
@@ -245,11 +145,6 @@ static int do_config(int argc, char *argv[])
     if ((argc > 3) && (strcmp(argv[1], "set") == 0)) {
         char *item = argv[2];
         char *value = argv[3];
-        if (strcmp(item, "id") == 0) {
-            printf("Setting id to '%s'\n", value);
-            strcpy(savedata.luftdatenid, value);
-            save_config();
-        }
         if (strcmp(item, "rgb") == 0) {
             bool rgb = (atoi(value) != 0);
             printf("Setting rgb to '%s'\n", rgb ? "true" : "false");
@@ -258,20 +153,8 @@ static int do_config(int argc, char *argv[])
         }
     }
 
-    if ((argc > 1) && (strcmp(argv[1], "auto") == 0)) {
-        printf("Attempting autoconfig...\n");
-        int id;
-        if (autoconfig(id)) {
-            printf("OK\n");
-        } else {
-            printf("FAIL\n");
-        }
-    }
-
-    printf("config.luftdatenid = %s\n", savedata.luftdatenid);
     printf("config.rgb         = %s\n", savedata.hasRgbLed ? "true" : "false");
     printf("config.magic       = %08X\n", savedata.magic);
-
     return CMD_OK;
 }
 
@@ -335,7 +218,7 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
 
     // send JSON with POST
     HTTPClient httpClient;
-    httpClient.begin(wifiClient,
+    httpClient.begin(secureWifiClient,
                      "https://location.services.mozilla.com/v1/geolocate?key=test");
     httpClient.addHeader("Content-Type", "application/json");
     int res = httpClient.POST(json);
@@ -359,49 +242,6 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
     accuracy = doc["accuracy"];
 
     return true;
-}
-
-static bool autoconfig(int &id)
-{
-    char filter[100];
-
-    // white/gray LED during autoconfig
-    set_led(CRGB::Gray);
-
-    // geolocate
-    float lat, lon, acc;
-    if (!geolocate(lat, lon, acc)) {
-        printf("geolocate failed!\n");
-        return false;
-    }
-
-    float dlon = KM_PER_DEGREE * cos(M_PI * lat / 180.0);
-    float dlat = KM_PER_DEGREE;
-
-    // search in increasingly larger area
-    for (float radius = 0.1; radius < 30; radius *= sqrt(2.0)) {
-        // yield() in a loop, although it's not clear from the documentation if it's needed or not
-        yield();
-
-        // fetch nearby sensors
-        float minlat = lat - radius / dlat;
-        float maxlat = lat + radius / dlat;
-        float minlon = lon - radius / dlon;
-        float maxlon = lon + radius / dlon;
-        snprintf(filter, sizeof(filter), "type=HPM,SDS011,PMS7003&box=%.5f,%.5f,%.5f,%.5f", 
-                 minlat, minlon, maxlat, maxlon);
-        String json;
-        if (!fetch_with_filter(filter, json)) {
-            printf("fetch_with_filter failed!\n");
-            return false;
-        }
-        // find closest one
-        if (find_closest(json, lat, lon, id)) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 static int do_geolocate(int argc, char *argv[])
@@ -428,10 +268,7 @@ static int do_error(int argc, char *argv[])
     if (argc > 1) {
         num_fetch_failures = atoi(argv[1]);
     }
-    if (argc > 2) {
-        num_decode_failures = atoi(argv[2]);
-    }
-    printf("fetch failures:%d, decode failures:%d\n", num_fetch_failures, num_decode_failures);
+    printf("fetch failures:%d\n", num_fetch_failures);
     return CMD_OK;
 }
 
@@ -448,7 +285,7 @@ static int do_led(int argc, char *argv[])
 
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
-    { "get", do_get, "[id] GET the PM10 value from Luftdaten" },
+    { "get", do_get, "[id] GET the PM2.5 value from stofradar.nl" },
     { "config", do_config, "[auto|clear|set] Manipulate configuration of Luftdaten id" },
     { "pm", do_pm, "<pm10> Simulate PM10 value and update the LED" },
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
@@ -489,6 +326,8 @@ static void animate(void)
 
 void setup(void)
 {
+    snprintf(espid, sizeof(espid), "esp8266-pmlamp-%06x", ESP.getChipId());
+
     Serial.begin(115200);
     printf("\nESP-STOFANANAS\n");
     EditInit(line, sizeof(line));
@@ -507,21 +346,15 @@ void setup(void)
     animate();
 
     // Set geo API wifi client insecure, the geo API requires https but we can't verify the signature
-    wifiClient.setInsecure();
+    secureWifiClient.setInsecure();
 
     // indicate white during config
     set_led(CRGB::Gray);
 
     // connect to wifi
     printf("Starting WIFI manager (%s)...\n", WiFi.SSID().c_str());
-    wifiManager.addParameter(&luftdatenIdParam);
-    wifiManager.setSaveConfigCallback(wifiManagerCallback);
     wifiManager.setConfigPortalTimeout(120);
-    if (savedata.magic == SAVEDATA_MAGIC) {
-        wifiManager.autoConnect("ESP-PMLAMP");
-    } else {
-        wifiManager.startConfigPortal("ESP-PMLAMP");
-    }
+    wifiManager.autoConnect("ESP-PMLAMP");
 }
 
 void loop(void)
@@ -531,20 +364,18 @@ void loop(void)
     unsigned int period = millis() / POLL_INTERVAL;
     if (period != period_last) {
         period_last = period;
-        if (strlen(savedata.luftdatenid) > 0) {
-            // fetch and decode JSON
+        if (!have_location) {
+            // try to determine location
+            have_location = geolocate(latitude, longitude, accuracy);
+        }
+        if (have_location) {
+            // fetch PM and update LED
             String json;
-            if (fetch_sensor(savedata.luftdatenid, json)) {
+            double pm2_5;
+            if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
                 num_fetch_failures = 0;
-                float pm10, lat, lon;
-                if (decode_json(json, "P1", pm10, lat, lon)) {
-                    num_decode_failures = 0;
-                    printf("PM10=%f, lat=%f, lon=%f\n", pm10, lat, lon);
-                    set_led(interpolate(pm10, pmlevels));
-                } else {
-                    num_decode_failures++;
-                    printf("Decode failure %d\n", num_decode_failures);
-                }
+                printf("PM2.5=%f, lat=%f, lon=%f\n", pm2_5, latitude, longitude);
+                set_led(interpolate(pm2_5, pmlevels));
             } else {
                 num_fetch_failures++;
                 printf("Fetch failure %d\n", num_fetch_failures);
@@ -554,20 +385,11 @@ void loop(void)
                     ESP.restart();
                 }
             }
-        } else {
-            // try to autoconfig
-            int id;
-            if (autoconfig(id)) {
-                printf("Autoconfig determined %d\n", id);
-                snprintf(savedata.luftdatenid, sizeof(savedata.luftdatenid), "%d", id);
-                // trigger fetch
-                period_last = -1;
-            }
         }
     }
 
     // flash LED when there is an error
-    if ((num_fetch_failures > 0) || (num_decode_failures > 0)) {
+    if (num_fetch_failures > 0) {
         bool flash = (millis() / 500) % 2;
 
         // update on the hardware
@@ -575,29 +397,28 @@ void loop(void)
     }
 
     // parse command line
-    bool haveLine = false;
-    if (Serial.available()) {
-        char c;
-        haveLine = EditLine(Serial.read(), &c);
+    while (Serial.available()) {
+        char c = Serial.read();
+        bool haveLine = EditLine(c, &c);
         Serial.write(c);
-    }
-    if (haveLine) {
-        int result = cmd_process(commands, line);
-        switch (result) {
-        case CMD_OK:
-            printf("OK\n");
-            break;
-        case CMD_NO_CMD:
-            break;
-        case CMD_UNKNOWN:
-            printf("Unknown command, available commands:\n");
-            show_help(commands);
-            break;
-        default:
-            printf("%d\n", result);
-            break;
+        if (haveLine) {
+            int result = cmd_process(commands, line);
+            switch (result) {
+            case CMD_OK:
+                printf("OK\n");
+                break;
+            case CMD_NO_CMD:
+                break;
+            case CMD_UNKNOWN:
+                printf("Unknown command, available commands:\n");
+                show_help(commands);
+                break;
+            default:
+                printf("%d\n", result);
+                break;
+            }
+            printf(">");
         }
-        printf(">");
     }
 }
 
