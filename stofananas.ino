@@ -111,7 +111,7 @@ static bool fetch_pm(double latitude, double longitude, const char *item, double
     char path[128];
 
     // fetch
-    sprintf(path, "/pm/%.6f/%.6f", latitude, longitude);
+    sprintf(path, "/air/%.6f/%.6f", latitude, longitude);
     if (fetch_url("stofradar.nl", 9000, path, response)) {
         // decode
         if (deserializeJson(doc, response) == DeserializationError::Ok) {
