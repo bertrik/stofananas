@@ -286,8 +286,8 @@ static int do_led(int argc, char *argv[])
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "[id] GET the PM2.5 value from stofradar.nl" },
-    { "config", do_config, "[auto|clear|set] Manipulate configuration of Luftdaten id" },
-    { "pm", do_pm, "<pm10> Simulate PM10 value and update the LED" },
+    { "config", do_config, "[clear|set] Manipulate configuration" },
+    { "pm", do_pm, "<pm> Simulate PM value and update the LED" },
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
     { "reboot", do_reboot, "Reboot" },
     { "error", do_error, "[fetch] [decode] Simulate a fetch/decode error" },
