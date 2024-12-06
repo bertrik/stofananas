@@ -11,9 +11,7 @@
 #include <ESP8266HTTPClient.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
-
-#include "cmdproc.h"
-#include "editline.h"
+#include <MiniShell.h>
 
 #include <Arduino.h>
 
@@ -41,6 +39,7 @@ static savedata_t savedata;
 
 static WiFiManager wifiManager;
 static WiFiClient wifiClient;
+static MiniShell shell(&Serial);
 static char espid[64];
 
 static CRGB leds1[1];
@@ -130,7 +129,7 @@ static int do_get(int argc, char *argv[])
         printf("fetch_pm failed!\n");
         return -1;
     }
-    return CMD_OK;
+    return 0;
 }
 
 static int do_config(int argc, char *argv[])
@@ -154,7 +153,7 @@ static int do_config(int argc, char *argv[])
 
     printf("config.rgb         = %s\n", savedata.hasRgbLed ? "true" : "false");
     printf("config.magic       = %08X\n", savedata.magic);
-    return CMD_OK;
+    return 0;
 }
 
 static CRGB interpolate(float pm, const pmlevel_t table[])
@@ -182,7 +181,7 @@ static int do_pm(int argc, char *argv[])
     float pm = atoi(argv[1]);
     set_led(interpolate(pm, pmlevels));
 
-    return CMD_OK;
+    return 0;
 }
 
 static bool geolocate(float &latitude, float &longitude, float &accuracy)
@@ -253,13 +252,13 @@ static int do_geolocate(int argc, char *argv[])
 
     printf("Latitude = %f, Longitude = %f, Accuracy = %f\n", latitude, longitude, accuracy);
     printf("https://google.com/maps/place/%f,%f\n", latitude, longitude);
-    return CMD_OK;
+    return 0;
 }
 
 static int do_reboot(int argc, char *argv[])
 {
     ESP.restart();
-    return CMD_OK;
+    return 0;
 }
 
 static int do_error(int argc, char *argv[])
@@ -268,7 +267,7 @@ static int do_error(int argc, char *argv[])
         num_fetch_failures = atoi(argv[1]);
     }
     printf("fetch failures:%d\n", num_fetch_failures);
-    return CMD_OK;
+    return 0;
 }
 
 static int do_led(int argc, char *argv[])
@@ -279,7 +278,7 @@ static int do_led(int argc, char *argv[])
     int rgb = strtoul(argv[1], NULL, 16);
     set_led(rgb);
 
-    return CMD_OK;
+    return 0;
 }
 
 const cmd_t commands[] = {
@@ -297,7 +296,7 @@ const cmd_t commands[] = {
 static int do_help(int argc, char *argv[])
 {
     show_help(commands);
-    return CMD_OK;
+    return 0;
 }
 
 static void animate(void)
@@ -329,7 +328,6 @@ void setup(void)
 
     Serial.begin(115200);
     printf("\nESP-STOFANANAS\n");
-    EditInit(line, sizeof(line));
 
     // init config
     EEPROM.begin(sizeof(savedata));
@@ -392,29 +390,7 @@ void loop(void)
         FastLED.showColor(color, flash ? 200 : 255);
     }
 
-    // parse command line
-    while (Serial.available()) {
-        char c = Serial.read();
-        bool haveLine = EditLine(c, &c);
-        Serial.write(c);
-        if (haveLine) {
-            int result = cmd_process(commands, line);
-            switch (result) {
-            case CMD_OK:
-                printf("OK\n");
-                break;
-            case CMD_NO_CMD:
-                break;
-            case CMD_UNKNOWN:
-                printf("Unknown command, available commands:\n");
-                show_help(commands);
-                break;
-            default:
-                printf("%d\n", result);
-                break;
-            }
-            printf(">");
-        }
-    }
+    // command line processing
+    shell.process(">", commands);
 }
 
