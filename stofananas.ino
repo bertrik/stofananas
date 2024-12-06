@@ -41,7 +41,6 @@ static savedata_t savedata;
 
 static WiFiManager wifiManager;
 static WiFiClient wifiClient;
-static WiFiClientSecure secureWifiClient;
 static char espid[64];
 
 static CRGB leds1[1];
@@ -218,14 +217,14 @@ static bool geolocate(float &latitude, float &longitude, float &accuracy)
 
     // send JSON with POST
     HTTPClient httpClient;
-    httpClient.begin(secureWifiClient,
-                     "https://location.services.mozilla.com/v1/geolocate?key=test");
+    httpClient.begin(wifiClient, "stofradar.nl", 9000, "/v1/geolocate");
     httpClient.addHeader("Content-Type", "application/json");
     int res = httpClient.POST(json);
     bool result = (res == HTTP_CODE_OK);
     String response = result ? httpClient.getString() : httpClient.errorToString(res);
     httpClient.end();
     if (res != HTTP_CODE_OK) {
+        printf("HTTP code %d\n", res);
         return false;
     }
     // parse response
@@ -344,9 +343,6 @@ void setup(void)
     }
     FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
     animate();
-
-    // Set geo API wifi client insecure, the geo API requires https but we can't verify the signature
-    secureWifiClient.setInsecure();
 
     // indicate white during config
     set_led(CRGB::Gray);
