@@ -6,12 +6,12 @@
 
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
+#include <ESP8266HTTPClient.h>
 
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
 
-#include <ESP8266HTTPClient.h>
-#include <ESPAsyncWebServer.h>
+#include "LittleFS.h"
 
 #include <FastLED.h>
 #include <ArduinoJson.h>
@@ -50,10 +50,8 @@ static char espid[64];
 static CRGB leds1[1];
 static CRGB leds7[7];
 static CRGB color;
-static char line[120];
 static int num_fetch_failures = 0;
 static float latitude, longitude, accuracy;
-static bool have_location = false;
 
 // see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
 static const pmlevel_t pmlevels[] = {
@@ -303,8 +301,8 @@ void setup(void)
     printf("\nESP-STOFANANAS\n");
 
     // load settings, save defaults if necessary
-    SPIFFS.begin();
-    config_begin(SPIFFS, "/config.json");
+    LittleFS.begin();
+    config_begin(LittleFS, "/config.json");
     if (!config_load()) {
         config_set_value("loc_latitude", "52.15517");
         config_set_value("loc_longitude", "5.38721");
@@ -316,7 +314,7 @@ void setup(void)
     savedata.longitude = atof(config_get_value("loc_longitude").c_str());
 
     // set up web server
-    server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
     config_serve(server, "/config", "/config.html");
     server.begin();
 
