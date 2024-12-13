@@ -312,6 +312,8 @@ void setup(void)
         config_save();
     }
     savedata.hasRgbLed = (strcmp("rgb", config_get_value("led_type").c_str()) == 0);
+    savedata.latitude = atof(config_get_value("loc_latitude").c_str());
+    savedata.longitude = atof(config_get_value("loc_longitude").c_str());
 
     // set up web server
     server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
@@ -341,7 +343,7 @@ void setup(void)
     MDNS.addService("http", "tcp", 80);
 
     // attempt geolocation
-    if (!geolocate(latitude, longitude, accuracy)) {
+    if (!geolocate(latitude, longitude, accuracy) || accuracy > 100) {
         latitude = savedata.latitude;
         longitude = savedata.longitude;
     }
