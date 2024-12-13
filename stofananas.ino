@@ -4,16 +4,21 @@
 #include <string.h>
 #include <math.h>
 
-#include <EEPROM.h>
-
 #include <ESP8266WiFi.h>
-#include <WiFiManager.h>
+#include <ESP8266mDNS.h>
+
+#include <ESPAsyncWebServer.h>
+#include <ESPAsyncWiFiManager.h>
+
 #include <ESP8266HTTPClient.h>
+#include <ESPAsyncWebServer.h>
+
 #include <FastLED.h>
 #include <ArduinoJson.h>
 #include <MiniShell.h>
-
 #include <Arduino.h>
+
+#include "config.h"
 
 #define printf Serial.printf
 
@@ -21,13 +26,12 @@
 #define DATA_PIN_1LED   D2
 #define DATA_PIN_7LED   D4
 
-#define SAVEDATA_MAGIC  0xCAFEBABE
-
 #define POLL_INTERVAL           300000
 
 typedef struct {
     bool hasRgbLed;
-    uint32_t magic;
+    float latitude;
+    float longitude;
 } savedata_t;
 
 typedef struct {
@@ -37,9 +41,10 @@ typedef struct {
 
 static savedata_t savedata;
 
-static WiFiManager wifiManager;
 static WiFiClient wifiClient;
+static AsyncWebServer server(80);
 static MiniShell shell(&Serial);
+static DNSServer dns;
 static char espid[64];
 
 static CRGB leds1[1];
@@ -68,14 +73,7 @@ static void set_led(CRGB crgb)
     FastLED.showColor(color);
 }
 
-static void save_config(void)
-{
-    savedata.magic = SAVEDATA_MAGIC;
-    EEPROM.put(0, savedata);
-    EEPROM.commit();
-}
-
-static void show_help(const cmd_t * cmds)
+static void show_help(const cmd_t *cmds)
 {
     for (const cmd_t * cmd = cmds; cmd->cmd != NULL; cmd++) {
         printf("%10s: %s\n", cmd->name, cmd->help);
@@ -109,7 +107,7 @@ static bool fetch_pm(double latitude, double longitude, const char *item, double
     char path[128];
 
     // fetch
-    sprintf(path, "/air/%.6f/%.6f", latitude, longitude);
+    sprintf(path, "/air?lat=%.6f&lon=%.6f", latitude, longitude);
     if (fetch_url("stofradar.nl", 9000, path, response)) {
         // decode
         if (deserializeJson(doc, response) == DeserializationError::Ok) {
@@ -129,30 +127,6 @@ static int do_get(int argc, char *argv[])
         printf("fetch_pm failed!\n");
         return -1;
     }
-    return 0;
-}
-
-static int do_config(int argc, char *argv[])
-{
-    if ((argc > 1) && (strcmp(argv[1], "clear") == 0)) {
-        printf("Clearing config\n");
-        memset(&savedata, 0, sizeof(savedata));
-        save_config();
-    }
-
-    if ((argc > 3) && (strcmp(argv[1], "set") == 0)) {
-        char *item = argv[2];
-        char *value = argv[3];
-        if (strcmp(item, "rgb") == 0) {
-            bool rgb = (atoi(value) != 0);
-            printf("Setting rgb to '%s'\n", rgb ? "true" : "false");
-            savedata.hasRgbLed = rgb;
-            save_config();
-        }
-    }
-
-    printf("config.rgb         = %s\n", savedata.hasRgbLed ? "true" : "false");
-    printf("config.magic       = %08X\n", savedata.magic);
     return 0;
 }
 
@@ -284,7 +258,6 @@ static int do_led(int argc, char *argv[])
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "[id] GET the PM2.5 value from stofradar.nl" },
-    { "config", do_config, "[clear|set] Manipulate configuration" },
     { "pm", do_pm, "<pm> Simulate PM value and update the LED" },
     { "geo", do_geolocate, "Perform a wifi geo-localisation" },
     { "reboot", do_reboot, "Reboot" },
@@ -329,17 +302,30 @@ void setup(void)
     Serial.begin(115200);
     printf("\nESP-STOFANANAS\n");
 
-    // init config
-    EEPROM.begin(sizeof(savedata));
-    EEPROM.get(0, savedata);
+    // load settings, save defaults if necessary
+    SPIFFS.begin();
+    config_begin(SPIFFS, "/config.json");
+    if (!config_load()) {
+        config_set_value("loc_latitude", "52.15517");
+        config_set_value("loc_longitude", "5.38721");
+        config_set_value("led_type", "grb");
+        config_save();
+    }
+    savedata.hasRgbLed = (strcmp("rgb", config_get_value("led_type").c_str()) == 0);
+
+    // set up web server
+    server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+    config_serve(server, "/config", "/config.html");
+    server.begin();
 
     // config led
     if (savedata.hasRgbLed) {
         FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
+        FastLED.addLeds < WS2812B, DATA_PIN_7LED, RGB > (leds7, 7).setCorrection(TypicalSMD5050);
     } else {
         FastLED.addLeds < WS2812B, DATA_PIN_1LED, GRB > (leds1, 1).setCorrection(TypicalSMD5050);
+        FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
     }
-    FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
     animate();
 
     // indicate white during config
@@ -347,8 +333,18 @@ void setup(void)
 
     // connect to wifi
     printf("Starting WIFI manager (%s)...\n", WiFi.SSID().c_str());
+    AsyncWiFiManager wifiManager(&server, &dns);
     wifiManager.setConfigPortalTimeout(120);
     wifiManager.autoConnect("ESP-PMLAMP");
+
+    MDNS.begin("stofananas");
+    MDNS.addService("http", "tcp", 80);
+
+    // attempt geolocation
+    if (!geolocate(latitude, longitude, accuracy)) {
+        latitude = savedata.latitude;
+        longitude = savedata.longitude;
+    }
 }
 
 void loop(void)
@@ -358,30 +354,22 @@ void loop(void)
     unsigned int period = millis() / POLL_INTERVAL;
     if (period != period_last) {
         period_last = period;
-        if (!have_location) {
-            // try to determine location
-            have_location = geolocate(latitude, longitude, accuracy);
-        }
-        if (have_location) {
-            // fetch PM and update LED
-            String json;
-            double pm2_5;
-            if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
-                num_fetch_failures = 0;
-                printf("PM2.5=%f, lat=%f, lon=%f\n", pm2_5, latitude, longitude);
-                set_led(interpolate(pm2_5, pmlevels));
-            } else {
-                num_fetch_failures++;
-                printf("Fetch failure %d\n", num_fetch_failures);
-                // reboot if too many fetch failures occur
-                if (num_fetch_failures > 10) {
-                    printf("Too many failures, rebooting ...");
-                    ESP.restart();
-                }
+        // fetch PM and update LED
+        double pm2_5;
+        if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
+            num_fetch_failures = 0;
+            printf("PM2.5=%f, lat=%f, lon=%f\n", pm2_5, latitude, longitude);
+            set_led(interpolate(pm2_5, pmlevels));
+        } else {
+            num_fetch_failures++;
+            printf("Fetch failure %d\n", num_fetch_failures);
+            // reboot if too many fetch failures occur
+            if (num_fetch_failures > 10) {
+                printf("Too many failures, rebooting ...");
+                ESP.restart();
             }
         }
     }
-
     // flash LED when there is an error
     if (num_fetch_failures > 0) {
         bool flash = (millis() / 500) % 2;
@@ -389,8 +377,9 @@ void loop(void)
         // update on the hardware
         FastLED.showColor(color, flash ? 200 : 255);
     }
-
     // command line processing
     shell.process(">", commands);
-}
 
+    // keep MDNS alive
+    MDNS.update();
+}

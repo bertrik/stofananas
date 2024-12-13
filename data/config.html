@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Configuration</title>
+    <link rel="stylesheet" href="classless.css">
+    <link rel="icon" type="image/x-icon" href="favicon.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="*" />
+</head>
+
+<body>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="*"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var map = L.map('map').setView([52.15517, 5.38721], 8);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19,
+            }).addTo(map);
+
+            var lat = document.getElementById('lat').value 
+            var lng = document.getElementById('lng').value
+            var marker = L.marker([lat, lng]).addTo(map);
+
+            // Listen for click events on the map
+            map.on('click', function (e) {
+                // Get the latitude and longitude of the click event
+                var lat = e.latlng.lat;
+                var lng = e.latlng.lng;
+                document.getElementById('lat').value = lat
+                document.getElementById('lng').value = lng
+
+                // Put the marker at the clicked location
+                marker.setLatLng(e.latlng)
+            });
+        });
+    </script>
+
+    <form action="/config" method="post" id="config">
+        <fieldset>
+            <legend>Configuration</legend>
+            <div id="map" style="height: 600px"></div>
+            <div class="row">
+                <label class="col">Latitude (decimal degrees)
+                    <input type="text" id="lat" name="loc_latitude" value="%loc_latitude%">
+                </label>
+                <label class="col">Longitude (decimal degrees)
+                    <input type="text" id="lng" name="loc_longitude" value="%loc_longitude%">
+                </label>
+            </div>
+            <div class="row">
+                <label class="col-4">LED type
+                    <select name="led_type">
+                        <option value="rgb" %led_type:rgb?selected%>RGB</option>
+                        <option value="grb" %led_type:grb?selected%>GRB</option>
+                    </select>
+                </label>
+            </div>
+        </fieldset>
+        <button type="submit" id="submit">Save</button>
+    </form>
+</body>
+
+<script type="module">
+    // disable submit button on POST, it will be re-enabled on the reload
+    document.getElementById("config").addEventListener("submit", function (e) {
+        document.getElementById("submit").disabled = true
+    })
+</script>
+
+
+</html>
