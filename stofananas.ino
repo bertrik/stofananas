@@ -406,7 +406,7 @@ void loop(void)
         double pm2_5;
         if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
             num_fetch_failures = 0;
-            printf("PM2.5=%f, lat=%f, lon=%f\n", pm2_5, latitude, longitude);
+            printf("PM2.5=%.2f, lat=%.6f, lon=%.6f\n", pm2_5, latitude, longitude);
             set_led(interpolate(pm2_5, pmlevels));
         } else {
             num_fetch_failures++;
