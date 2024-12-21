@@ -3,10 +3,11 @@
 import os
 
 def create_c_header(directory, output_file):
+    print(f"Creating C file with file contents: {output_file}")
     with open(output_file, 'w') as header:
-        header.write("// Auto-generated header file\n\n")
+        header.write(f"// Generated using create_fsimage.py from contents of folder '{directory}'\n\n")
         header.write('#include <Arduino.h>\n')
-        header.write('#include "webcontent.h"\n\n')
+        header.write('#include "fsimage.h"\n\n')
 
         # Iterate over all files in the directory
         entries = ""
@@ -31,15 +32,12 @@ def create_c_header(directory, output_file):
             entries += f'    {{ "/{filename}", {identifier}, sizeof({identifier}) }},\n'
 
         # write table with file entries
-        header.write("const file_entry_t file_table[] = {\n")
+        header.write("const fsimage_entry_t fsimage_table[] = {\n")
         header.write(entries)
         header.write('    {"", NULL, 0}\n')
         header.write('};\n\n')
 
 
-# Specify the directory containing the files and the output header file
-input_directory = 'data'
-output_header = 'webcontent.cpp'
+# Create the data file
+create_c_header("data", "fsimage_data.cpp")
 
-print(f"Creating C file with file contents: {output_header}")
-create_c_header(input_directory, output_header)

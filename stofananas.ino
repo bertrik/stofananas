@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "webcontent.h"
+#include "fsimage.h"
 
 #define printf Serial.printf
 
@@ -255,46 +255,14 @@ static int do_led(int argc, char *argv[])
     return 0;
 }
 
-static void unpack_file(FS &fs, const file_entry_t *entry)
-{
-    uint8_t buf[1024];
-    File file = fs.open(entry->filename, "w");
-    if (file) {
-        const unsigned char *p = entry->data;
-        size_t remain = entry->length;
-        for (size_t block; remain > 0; remain -= block, p += block) {
-            block = remain > sizeof(buf) ? sizeof(buf) : remain;
-            memcpy_P(buf, p, block);
-            file.write(buf, block);
-        }
-        file.close();
-    }
-}
-
-static void unpack_fs(FS &fs, const file_entry_t *table, bool force)
-{
-    printf("Unpacking files...\n");
-    for (const file_entry_t *entry = table; *entry->filename; entry++) {
-        size_t filesize = 0;
-        File file = fs.open(entry->filename, "r");
-        if (file) {
-            filesize = file.size();
-            file.close();
-        }
-        if (force || (filesize != entry->length)) {
-            printf("Writing %d bytes to '%s'...", entry->length, entry->filename);
-            unpack_file(fs, entry);
-            printf("done\n");
-        } else {
-            printf("Skipping '%s'\n", entry->filename);
-        }
-    }
-    printf("All files unpacked\n");
-}
-
 static int do_unpack(int argc, char *argv[])
 {
-    unpack_fs(LittleFS, file_table, true);
+    bool force = false;
+    if (argc > 1) {
+        force = (strcmp(argv[1], "force") == 0);
+    }
+    printf("Unpacking(force=%d)\n", force);
+    fsimage_unpack(LittleFS, force);
     return 0;
 }
 
@@ -306,7 +274,7 @@ const cmd_t commands[] = {
     { "reboot", do_reboot, "Reboot" },
     { "error", do_error, "[fetch] [decode] Simulate a fetch/decode error" },
     { "led", do_led, "<RRGGBB> Set the LED to a specific value (hex)" },
-    { "unpack", do_unpack, "Unpack files" },
+    { "unpack", do_unpack, "<force> Unpack files" },
     { NULL, NULL, NULL }
 };
 
@@ -348,7 +316,7 @@ void setup(void)
 
     // load settings, save defaults if necessary
     LittleFS.begin();
-    unpack_fs(LittleFS, file_table, false);
+    fsimage_unpack(LittleFS, false);
     config_begin(LittleFS, "/config.json");
     if (!config_load()) {
         printf("Loading config defaults\n");
