@@ -19,7 +19,7 @@
 #include <Arduino.h>
 
 #include "config.h"
-
+#include "fwupdate.h"
 #include "fsimage.h"
 
 #define printf Serial.printf
@@ -332,7 +332,8 @@ void setup(void)
     // set up web server
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
     config_serve(server, "/config", "/config.html");
-    server.begin();
+    fwupdate_begin(LittleFS);
+    fwupdate_serve(server, "/update", "update.html");
 
     // config led
     if (savedata.hasRgbLed) {
@@ -355,6 +356,7 @@ void setup(void)
 
     MDNS.begin("stofananas");
     MDNS.addService("http", "tcp", 80);
+    server.begin();
 
     // attempt geolocation
     if (!geolocate(latitude, longitude, accuracy) || accuracy > 100) {
