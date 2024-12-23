@@ -316,6 +316,11 @@ void setup(void)
     savedata.latitude = atof(config_get_value("loc_latitude").c_str());
     savedata.longitude = atof(config_get_value("loc_longitude").c_str());
 
+    // set up web server
+    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+    config_serve(server, "/config", "/config.html");
+    fwupdate_serve(server, "/update", "update.html");
+
     // config led
     if (savedata.hasRgbLed) {
         FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
@@ -384,4 +389,7 @@ void loop(void)
 
     // keep MDNS alive
     MDNS.update();
+
+    // firmware update
+    fwupdate_loop();
 }

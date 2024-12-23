@@ -3,12 +3,16 @@
 #include <stdint.h>
 
 #include <Arduino.h>
+#include <ESP8266HTTPClient.h>
+#include <ESP8266httpUpdate.h>
 
 #include "fwupdate.h"
 
 static FS *_fs;
+static WiFiClientSecure wifiClientSecure;
 static String _update_path;
 static String _update_page;
+static String _url = "";
 
 static unsigned long update_started = 0;
 static int last_chunk = 0;
@@ -18,6 +22,13 @@ static int last_chunk = 0;
 void fwupdate_begin(FS & fs)
 {
     _fs = &fs;
+
+    wifiClientSecure.setInsecure();
+
+    ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    ESPhttpUpdate.setLedPin(LED_BUILTIN, 0);
+    ESPhttpUpdate.rebootOnUpdate(true);
+
     Update.runAsync(true);
 }
 
@@ -26,10 +37,18 @@ static void handleGet(AsyncWebServerRequest *request)
     request->send(*_fs, _update_page, "text/html");
 }
 
+/*
+ * Called either at the start of HTTP update, or at the end of file update.
+ */
 static void handleRequest(AsyncWebServerRequest *request)
 {
-    unsigned long duration = millis() - update_started;
-    printf("done, took %ld ms\n", duration);
+    for (size_t i = 0; i < request->args(); i++) {
+        printf("%s=%s\n", request->getParam(i)->name().c_str(), request->getParam(i)->value().c_str());
+    }
+    String type = request->getParam("type", true)->value();
+    if (type == "http") {
+        _url = request->getParam("url", true)->value();
+    }
     request->redirect(_update_path);
 }
 
@@ -55,6 +74,8 @@ static void handleUpload(AsyncWebServerRequest *request, const String &filename,
 
     if (final) {
         Update.end(true);
+        unsigned long duration = millis() - update_started;
+        printf("done, took %ld ms\n", duration);
     }
 }
 
@@ -74,3 +95,28 @@ void fwupdate_serve(AsyncWebServer &server, const char *update_path, const char 
     server.on(update_path, HTTP_POST, handleRequest, handleUpload);
     server.on("/reboot", HTTP_GET, handleReboot);
 }
+
+void fwupdate_loop(void)
+{
+    if (_url != "") {
+        ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+        ESPhttpUpdate.setLedPin(LED_BUILTIN, 0);
+        ESPhttpUpdate.rebootOnUpdate(true);
+        switch (ESPhttpUpdate.update(wifiClientSecure, _url)) {
+        case HTTP_UPDATE_FAILED:
+            printf("failed!\n");
+            break;
+        case HTTP_UPDATE_NO_UPDATES:
+            printf("no update!\n");
+            break;
+        case HTTP_UPDATE_OK:
+            printf("OK!\n");
+            break;
+        default:
+            break;
+        }
+        _url = "";
+    }
+}
+
+

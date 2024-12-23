@@ -9,16 +9,30 @@
 
 <body>
     <p style="text-align:left"><a href="/"">/home</a></p> 
-    <form action="/update" method="post" id="update" enctype="multipart/form-data">
+    <form action="/update" method="post">
         <fieldset>
-            <legend>Firmware update</legend>
+            <legend>Firmware update over HTTP</legend>
+            <div class="" row">
+                <label class="col">Remote URL:
+                    <input type="url" id="url" name="url"
+                        value="https://github.com/bertrik/stofananas/releases/latest/download/firmware.bin" required>
+                </label>
+            </div>
             <div class="row">
-                <label class="col">Firmware file:
+                <button type="submit" id="http" name="type" value="http">Update</button>
+            </div>
+        </fieldset>
+    </form>
+    <form action="/update" method="post" enctype="multipart/form-data">
+        <fieldset>
+            <legend>Firmware update from local file</legend>
+            <div class="row">
+                <label class="col">Local file:
                     <input type="file" id="file" name="file" accept=".bin" required>
                 </label>
             </div>
             <div class="row">
-                <button type="submit" id="submit">Update</button>
+                <button type="submit" id="update" name="type" value="file">Update</button>
                 <button type="button" id="reboot" onclick="fetch('/reboot')">Reboot</button>
             </div>
         </fieldset>
@@ -28,7 +42,7 @@
 <script type="module">
     // disable submit button on POST, it will be re-enabled on the reload
     document.getElementById("update").addEventListener("submit", function (e) {
-        document.getElementById("submit").disabled = true
+        document.getElementById("update").disabled = true
     })
 </script>
 
