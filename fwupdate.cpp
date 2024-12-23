@@ -11,8 +11,6 @@ static String _update_path;
 static String _update_page;
 
 static unsigned long update_started = 0;
-static size_t estimated_size;
-static size_t progress = 0;
 static int last_chunk = 0;
 
 #define printf Serial.printf
@@ -38,10 +36,7 @@ static void handleRequest(AsyncWebServerRequest *request)
 static void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
 {
     if (index == 0) {
-        estimated_size = ESP.getSketchSize();
-        progress= 0;
         last_chunk = 0;
-        printf("begin, free heap=%u, current sketch=%u: ", ESP.getFreeHeap(), ESP.getSketchSize());
         uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
         update_started = millis();
         if (!Update.begin(maxSketchSpace, U_FLASH)) {
@@ -60,7 +55,6 @@ static void handleUpload(AsyncWebServerRequest *request, const String &filename,
 
     if (final) {
         Update.end(true);
-        request->redirect(_update_path);
     }
 }
 
