@@ -208,6 +208,49 @@ static int do_unpack(int argc, char *argv[])
     return 0;
 }
 
+static int do_update(int argc, char *argv[])
+{
+    int result = 0;
+    const char *url = (argc > 1) ? argv[1] : "https://github.com/bertrik/stofananas/releases/latest/download/firmware.bin";
+
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    if (http.begin(client, url)) {
+        printf("GET %s ... ", url);
+        int httpCode = http.GET();
+        printf("%d\n", httpCode);
+        if (httpCode == HTTP_CODE_OK) {
+            int contentLength = http.getSize();
+            printf("Update.begin(%d) ... ", contentLength);
+            if (Update.begin(contentLength, U_FLASH, LED_BUILTIN, 0)) {
+                printf("OK\n");
+                printf("Update.writeStream() ...");
+                size_t written = Update.writeStream(http.getStream());
+                printf("%d written\n", written);
+
+                printf("Update.end() ... ");
+                if (Update.end(true)) {
+                    printf("OK\n");
+                } else {
+                    printf("FAIL\n");
+                    result = -1;
+                }
+            } else {
+                printf("FAIL\n");
+                result = -1;
+            }
+        }
+        http.end();
+    } else {
+        printf("http.begin() failed!\n");
+        result = -3;
+    }
+    return result;
+}
+
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "[id] GET the PM2.5 value from stofradar.nl" },
@@ -217,6 +260,7 @@ const cmd_t commands[] = {
     { "error", do_error, "[fetch] [decode] Simulate a fetch/decode error" },
     { "led", do_led, "<RRGGBB> Set the LED to a specific value (hex)" },
     { "unpack", do_unpack, "<force> Unpack files" },
+    { "update", do_update, "[url] Update firmware from URL" },
     { NULL, NULL, NULL }
 };
 
@@ -258,6 +302,7 @@ void setup(void)
 
     // load settings, save defaults if necessary
     LittleFS.begin();
+    fwupdate_begin(LittleFS);
     fsimage_unpack(LittleFS, false);
     config_begin(LittleFS, "/config.json");
     if (!config_load()) {
@@ -271,12 +316,6 @@ void setup(void)
     savedata.latitude = atof(config_get_value("loc_latitude").c_str());
     savedata.longitude = atof(config_get_value("loc_longitude").c_str());
 
-    // set up web server
-    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
-    config_serve(server, "/config", "/config.html");
-    fwupdate_begin(LittleFS);
-    fwupdate_serve(server, "/update", "update.html");
-
     // config led
     if (savedata.hasRgbLed) {
         FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
@@ -285,17 +324,20 @@ void setup(void)
         FastLED.addLeds < WS2812B, DATA_PIN_1LED, GRB > (leds1, 1).setCorrection(TypicalSMD5050);
         FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
     }
-    animate();
 
-    // indicate white during config
+    // animate LED then indicate white during config
+    animate();
     set_led(CRGB::Gray);
 
     // connect to wifi
     printf("Starting WIFI manager (%s)...\n", WiFi.SSID().c_str());
     AsyncWiFiManager wifiManager(&server, &dns);
-    wifiManager.setConfigPortalTimeout(120);
     wifiManager.autoConnect("ESP-PMLAMP");
 
+    // set up web server
+    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+    config_serve(server, "/config", "/config.html");
+    fwupdate_serve(server, "/update", "update.html");
     MDNS.begin("stofananas");
     MDNS.addService("http", "tcp", 80);
     server.begin();
