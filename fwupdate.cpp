@@ -7,6 +7,7 @@
 #include <ESP8266httpUpdate.h>
 
 #include "fwupdate.h"
+#include "fwversion.h"
 
 static FS *_fs;
 static WiFiClientSecure wifiClientSecure;
@@ -32,9 +33,17 @@ void fwupdate_begin(FS & fs)
     Update.runAsync(true);
 }
 
+static String template_processor(const String & string)
+{
+    if (string == "fw_version") {
+        return FW_VERSION;
+    }
+    return string;
+}
+
 static void handleGet(AsyncWebServerRequest *request)
 {
-    request->send(*_fs, _update_page, "text/html");
+    request->send(*_fs, _update_page, "text/html", false, template_processor);
 }
 
 /*
