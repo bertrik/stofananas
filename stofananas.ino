@@ -37,11 +37,6 @@ typedef struct {
     float longitude;
 } savedata_t;
 
-typedef struct {
-    int pm;
-    int hue;
-} pmlevel_t;
-
 static savedata_t savedata;
 
 static WiFiClient wifiClient;
@@ -55,14 +50,30 @@ static CRGB leds7[7];
 static CRGB color;
 static int num_fetch_failures = 0;
 static float latitude, longitude, accuracy;
+static int stook_score;
+static double pm2_5;
+
+typedef struct {
+    int pm;
+    int hue;
+} pmlevel_t;
 
 // see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
-static const pmlevel_t pmlevels[] = {
+static const pmlevel_t pmlevels_original[] = {
     { 0, 160 },                 // blue
     { 15, 96 },                 // green
     { 30, 64 },                 // yellow
     { 60, 0 },                  // red
     { 120, -32 },               // pink
+    { -1, 0 }                   // END
+};
+
+static const pmlevel_t pmlevels_who[] = {
+    { 0, 160 },                 // blue
+    { 5, 96 },                 // green
+    { 10, 64 },                 // yellow
+    { 15, 0 },                  // red
+    { 20, -32 },               // pink
     { -1, 0 }                   // END
 };
 
@@ -123,7 +134,7 @@ static int do_get(int argc, char *argv[])
 {
     double pm2_5;
     if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
-        set_led(interpolate(pm2_5, pmlevels));
+        set_led(interpolate(pm2_5, pmlevels_original));
     } else {
         printf("fetch_pm failed!\n");
         return -1;
@@ -154,7 +165,7 @@ static int do_pm(int argc, char *argv[])
     }
 
     float pm = atoi(argv[1]);
-    set_led(interpolate(pm, pmlevels));
+    set_led(interpolate(pm, pmlevels_original));
 
     return 0;
 }
@@ -218,7 +229,6 @@ static int do_update(int argc, char *argv[])
 
     client.setInsecure();
 
-
     HTTPClient http;
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     if (http.begin(client, url)) {
@@ -256,9 +266,9 @@ static int do_update(int argc, char *argv[])
 
 static int do_stook(int argc, char *argv[])
 {
-    stookwijzer_get(latitude, longitude);
-
-    return 0;
+    int score;
+    stookwijzer_get(latitude, longitude, score);
+    return score;
 }
 
 const cmd_t commands[] = {
@@ -321,6 +331,7 @@ void setup(void)
         config_set_value("loc_latitude", "52.15517");
         config_set_value("loc_longitude", "5.38721");
         config_set_value("led_type", "grb");
+        config_set_value("color_scheme", "pm25_org");
         config_save();
     }
     savedata.hasRgbLed = (strcmp("rgb", config_get_value("led_type").c_str()) == 0);
@@ -365,17 +376,18 @@ void setup(void)
 
 void loop(void)
 {
-    // fetch a new value every POLL_INTERVAL
+    bool update_led = false;
+
+    // fetch a new PM2.5 value every POLL_INTERVAL
     static unsigned int period_last = -1;
     unsigned int period = millis() / POLL_INTERVAL;
     if (period != period_last) {
         period_last = period;
         // fetch PM and update LED
-        double pm2_5;
         if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
-            num_fetch_failures = 0;
             printf("PM2.5=%.2f, lat=%.6f, lon=%.6f\n", pm2_5, latitude, longitude);
-            set_led(interpolate(pm2_5, pmlevels));
+            num_fetch_failures = 0;
+            update_led = true;
         } else {
             num_fetch_failures++;
             printf("Fetch failure %d\n", num_fetch_failures);
@@ -386,13 +398,51 @@ void loop(void)
             }
         }
     }
-    // flash LED when there is an error
-    if (num_fetch_failures > 0) {
-        bool flash = (millis() / 500) % 2;
 
-        // update on the hardware
-        FastLED.showColor(color, flash ? 200 : 255);
+    // fetch stookwijzer once per hour
+    static unsigned hour_last = -1;
+    static unsigned hour = millis() / 3600000;
+    if (hour != hour_last) {
+        hour_last = hour;
+        stookwijzer_get(latitude, longitude, stook_score);
     }
+
+    // update LED
+    if (update_led) {
+        update_led = false;
+        CRGB color;
+        String scheme = config_get_value("color_scheme");
+        if (scheme == "pm25_org") {
+            color = interpolate(pm2_5, pmlevels_original);
+        }
+        if (scheme == "pm25_who") {
+            color = interpolate(pm2_5, pmlevels_who);
+        }
+        if (scheme == "stook") {
+            switch (stook_score) {
+                case 0:
+                    color = CRGB::Yellow;
+                    break;
+                case 1:
+                    color = CRGB::Orange;
+                    break;
+                case 2:
+                    color = CRGB::Red;
+                    break;
+                default:
+                    color = CRGB::Grey;
+                    break;
+            }
+        }
+        if (num_fetch_failures > 0) {
+            // flash LED when there is an error
+            bool flash = (millis() / 500) % 2;
+            FastLED.showColor(color, flash ? 200 : 255);
+        } else {
+            FastLED.showColor(color);
+        }
+    }
+
     // command line processing
     shell.process(">", commands);
 

@@ -1,9 +1,8 @@
 #include <stdbool.h>
 
 #include <ArduinoJson.h>
-#include <ESP8266HTTPClient.h>
-
 #include <WiFiClientSecure.h>
+#include <ESP8266HTTPClient.h>
 
 #include "stookwijzer.h"
 
@@ -41,7 +40,7 @@ void stookwijzer_begin(void)
     printf("\n");
 }
 
-bool stookwijzer_get(double latitude, double longitude)
+bool stookwijzer_get(double latitude, double longitude, int &score)
 {
     double delta = 0.00001;
     char url[300];
@@ -63,6 +62,7 @@ bool stookwijzer_get(double latitude, double longitude)
             printf("%s\n", error.c_str());
             serializeJsonPretty(doc, Serial);
             printf("\n");
+            score = doc["features"][0]["properties"]["advies_0"];
             result = true;
         }
         http.end();

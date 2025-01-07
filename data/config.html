@@ -58,6 +58,13 @@
                         <option value="grb" %led_type:grb?selected%>GRB</option>
                     </select>
                 </label>
+                <label class="col-4">Color scheme
+                    <select name="color_scheme">
+                        <option value="pm25_org" %color_scheme:pm25_org?selected%>PM 2.5 (original)</option>
+                        <option value="pm25_who" %color_scheme:pm25_who?selected%>PM 2.5 (World Health Organisation)</option>
+                        <option value="stook" %color_scheme:stook?selected%>Stookwijzer</option>
+                    </select>
+                </label>
             </div>
         </fieldset>
         <button type="submit" id="submit">Save</button>

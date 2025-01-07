@@ -2,5 +2,5 @@
 
 void stookwijzer_begin(void);
 
-bool stookwijzer_get(double lat, double lon);
+bool stookwijzer_get(double lat, double lon, int &score);
 
