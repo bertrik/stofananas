@@ -256,7 +256,7 @@ static int do_update(int argc, char *argv[])
 
 static int do_stook(int argc, char *argv[])
 {
-    stookwijzer_get(52.01809622303658, 4.70760876719758);
+    stookwijzer_get(latitude, longitude);
 
     return 0;
 }
