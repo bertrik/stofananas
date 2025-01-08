@@ -21,6 +21,7 @@
 #include "fwupdate.h"
 #include "fsimage.h"
 #include "geolocate.h"
+#include "stookwijzer.h"
 
 #define printf Serial.printf
 
@@ -214,7 +215,9 @@ static int do_update(int argc, char *argv[])
     const char *url = (argc > 1) ? argv[1] : "https://github.com/bertrik/stofananas/releases/latest/download/firmware.bin";
 
     WiFiClientSecure client;
+
     client.setInsecure();
+
 
     HTTPClient http;
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -251,6 +254,13 @@ static int do_update(int argc, char *argv[])
     return result;
 }
 
+static int do_stook(int argc, char *argv[])
+{
+    stookwijzer_get(52.01809622303658, 4.70760876719758);
+
+    return 0;
+}
+
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "[id] GET the PM2.5 value from stofradar.nl" },
@@ -261,6 +271,7 @@ const cmd_t commands[] = {
     { "led", do_led, "<RRGGBB> Set the LED to a specific value (hex)" },
     { "unpack", do_unpack, "<force> Unpack files" },
     { "update", do_update, "[url] Update firmware from URL" },
+    { "stook", do_stook, "Interact with stookwijzer" },
     { NULL, NULL, NULL }
 };
 
@@ -347,6 +358,9 @@ void setup(void)
         latitude = savedata.latitude;
         longitude = savedata.longitude;
     }
+
+    // stookwijzer
+    stookwijzer_begin();
 }
 
 void loop(void)
