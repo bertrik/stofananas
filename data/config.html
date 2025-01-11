@@ -10,73 +10,77 @@
 </head>
 
 <body>
-    <p style="text-align:left"><a href="/"">/home</a></p> 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="*"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            var lat = document.getElementById('lat').value 
-            var lng = document.getElementById('lng').value
-            var map = L.map('map').setView([lat, lng], 10);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 19,
-            }).addTo(map);
-
-            var marker = L.marker([lat, lng]).addTo(map);
-
-            // Listen for click events on the map
-            map.on('click', function (e) {
-                // Get the latitude and longitude of the click event
-                var lat = e.latlng.lat;
-                var lng = e.latlng.lng;
-                document.getElementById('lat').value = lat
-                document.getElementById('lng').value = lng
-
-                // Put the marker at the clicked location
-                marker.setLatLng(e.latlng)
-            });
-        });
-    </script>
-
-    <form action="/config" method="post" id="config">
+    <p style="text-align:left"><a href="/">/home</a></p>
+    <form action=" /config" method="post" id="config">
         <fieldset>
             <legend>Configuration</legend>
             <div id="map" style="height: 600px"></div>
             <div class="row">
                 <label class="col">Latitude (decimal degrees)
-                    <input type="text" id="lat" name="loc_latitude" value="%loc_latitude%">
+                    <input type="text" id="lat" name="loc_latitude">
                 </label>
                 <label class="col">Longitude (decimal degrees)
-                    <input type="text" id="lng" name="loc_longitude" value="%loc_longitude%">
+                    <input type="text" id="lon" name="loc_longitude">
                 </label>
             </div>
             <div class="row">
-                <label class="col-4">LED type
+                <label class="col">LED type
                     <select name="led_type">
-                        <option value="rgb" %led_type:rgb?selected%>RGB</option>
-                        <option value="grb" %led_type:grb?selected%>GRB</option>
+                        <option value="rgb">RGB</option>
+                        <option value="grb">GRB</option>
                     </select>
                 </label>
-                <label class="col-4">Color scheme
+                <label class="col">Color scheme
                     <select name="color_scheme">
-                        <option value="pm25_org" %color_scheme:pm25_org?selected%>PM 2.5 (original)</option>
-                        <option value="pm25_who" %color_scheme:pm25_who?selected%>PM 2.5 (World Health Organisation)</option>
-                        <option value="stook" %color_scheme:stook?selected%>Stookwijzer</option>
+                        <option value="pm25_org">PM 2.5 (original)</option>
+                        <option value="pm25_who">PM 2.5 (WHO)</option>
+                        <option value="stook">Stookwijzer</option>
                     </select>
                 </label>
             </div>
         </fieldset>
         <button type="submit" id="submit">Save</button>
     </form>
+
+    <script src=" https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="*"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async function () {
+            // pre-fill input fields from config
+            const config = await fetch('/config.json').then(response => response.json());
+            Object.entries(config).forEach(([name, value]) => {
+                const element = document.querySelector("[name='" + name + "']");
+                if (element) {
+                    element.value = value;
+                }
+            })
+
+            // center map on configured coordinate
+            const lat = document.getElementById('lat').value
+            const lng = document.getElementById('lon').value
+            var map = L.map('map').setView([lat, lng], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19,
+            }).addTo(map);
+
+            // add map click handler to fill coordinate inputs
+            var marker = L.marker([lat, lng]).addTo(map);
+            map.on('click', function (e) {
+                // Get the latitude and longitude of the click event
+                document.getElementById('lat').value = e.latlng.lat
+                document.getElementById('lon').value = e.latlng.lng
+                // Put the marker at the clicked location
+                marker.setLatLng(e.latlng)
+            });
+        });
+
+        // disable submit button on POST, it will be re-enabled on the reload
+        document.getElementById("config").addEventListener("submit", function (e) {
+            document.getElementById("submit").disabled = true
+        });
+    </script>
 </body>
-
-<script type="module">
-    // disable submit button on POST, it will be re-enabled on the reload
-    document.getElementById("config").addEventListener("submit", function (e) {
-        document.getElementById("submit").disabled = true
-    })
-</script>
-
 
 </html>
