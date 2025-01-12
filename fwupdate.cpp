@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include <Arduino.h>
+
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
@@ -10,7 +11,7 @@
 #include "fwversion.h"
 
 static FS *_fs;
-static WiFiClientSecure wifiClientSecure;
+static WiFiClient *_client;
 static String _update_path;
 static String _update_page;
 static String _url = "";
@@ -20,11 +21,10 @@ static int last_chunk = 0;
 
 #define printf Serial.printf
 
-void fwupdate_begin(FS & fs)
+void fwupdate_begin(FS & fs, WiFiClient &wifiClient)
 {
     _fs = &fs;
-
-    wifiClientSecure.setInsecure();
+    _client = &wifiClient;
 
     ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     ESPhttpUpdate.setLedPin(LED_BUILTIN, 0);
@@ -108,7 +108,7 @@ void fwupdate_serve(AsyncWebServer &server, const char *update_path, const char 
 void fwupdate_loop(void)
 {
     if (_url != "") {
-        switch (ESPhttpUpdate.update(wifiClientSecure, _url)) {
+        switch (ESPhttpUpdate.update(*_client, _url)) {
         case HTTP_UPDATE_FAILED:
             printf("failed!\n");
             break;

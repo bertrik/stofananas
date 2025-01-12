@@ -40,6 +40,7 @@ typedef struct {
 static savedata_t savedata;
 
 static WiFiClient wifiClient;
+static WiFiClientSecure wifiClientSecure;
 static AsyncWebServer server(80);
 static MiniShell shell(&Serial);
 static DNSServer dns;
@@ -225,13 +226,9 @@ static int do_update(int argc, char *argv[])
     int result = 0;
     const char *url = (argc > 1) ? argv[1] : "https://github.com/bertrik/stofananas/releases/latest/download/firmware.bin";
 
-    WiFiClientSecure client;
-
-    client.setInsecure();
-
     HTTPClient http;
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    if (http.begin(client, url)) {
+    if (http.begin(wifiClientSecure, url)) {
         printf("GET %s ... ", url);
         int httpCode = http.GET();
         printf("%d\n", httpCode);
@@ -334,7 +331,8 @@ void setup(void)
 
     // load settings, save defaults if necessary
     LittleFS.begin();
-    fwupdate_begin(LittleFS);
+    wifiClientSecure.setInsecure();
+    fwupdate_begin(LittleFS, wifiClientSecure);
     fsimage_unpack(LittleFS, false);
     config_begin(LittleFS, "/config.json");
     if (!config_load()) {
@@ -385,7 +383,7 @@ void setup(void)
     }
 
     // stookwijzer
-    stookwijzer_begin(espid);
+    stookwijzer_begin(wifiClientSecure, espid);
 }
 
 void loop(void)

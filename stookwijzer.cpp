@@ -9,13 +9,12 @@
 #define printf Serial.printf
 
 static StaticJsonDocument < 256 > filter;       // https://arduinojson.org/v6/assistant
-static WiFiClientSecure client;
+static WiFiClient *client;
 static HTTPClient http;
 
-void stookwijzer_begin(const char *user_agent)
+void stookwijzer_begin(WiFiClient &wifiClient, const char *user_agent)
 {
-    // allow https communication without actually checking certificates
-    client.setInsecure();
+    client = &wifiClient;
 
     // configure HTTP client: follow redirects, non-chunked mode, disable connection re-use
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -28,14 +27,7 @@ void stookwijzer_begin(const char *user_agent)
     filter["features"][0]["properties"]["lki"] = true;
     filter["features"][0]["properties"]["wind"] = true;
     filter["features"][0]["properties"]["advies_0"] = true;
-    filter["features"][0]["properties"]["advies_6"] = true;
-    filter["features"][0]["properties"]["advies_12"] = true;
-    filter["features"][0]["properties"]["advies_18"] = true;
     filter["features"][0]["properties"]["definitief_0"] = true;
-    filter["features"][0]["properties"]["definitief_6"] = true;
-    filter["features"][0]["properties"]["definitief_12"] = true;
-    filter["features"][0]["properties"]["definitief_18"] = true;
-
     printf("JSON filter:\n");
     serializeJsonPretty(filter, Serial);
     printf("\n");
@@ -51,7 +43,7 @@ bool stookwijzer_get(double latitude, double longitude, int &score)
             latitude - delta, longitude + delta, latitude + delta);
 
     bool result = false;
-    if (http.begin(client, url)) {
+    if (http.begin(*client, url)) {
         printf("GET %s... ", url);
         int httpCode = http.GET();
         printf("%d\n", httpCode);
