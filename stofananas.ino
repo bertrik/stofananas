@@ -271,6 +271,16 @@ static int do_stook(int argc, char *argv[])
     return score;
 }
 
+static int do_datetime(int argc, char *argv[])
+{
+    time_t now = time(NULL);
+    struct tm * info = localtime(&now);
+    printf("Date/time is now %4d-%02d-%02d %02d:%02d:%02d\n",
+        1900 + info->tm_year, 1 + info->tm_mon, info->tm_mday,
+        info->tm_hour, info->tm_min, info->tm_sec);
+    return 0;
+}
+
 const cmd_t commands[] = {
     { "help", do_help, "Show help" },
     { "get", do_get, "[id] GET the PM2.5 value from stofradar.nl" },
@@ -282,6 +292,7 @@ const cmd_t commands[] = {
     { "unpack", do_unpack, "<force> Unpack files" },
     { "update", do_update, "[url] Update firmware from URL" },
     { "stook", do_stook, "Interact with stookwijzer" },
+    { "date", do_datetime, "Show date/time" },
     { NULL, NULL, NULL }
 };
 
@@ -355,6 +366,9 @@ void setup(void)
     printf("Starting WIFI manager (%s)...\n", WiFi.SSID().c_str());
     AsyncWiFiManager wifiManager(&server, &dns);
     wifiManager.autoConnect("ESP-PMLAMP");
+
+    // configure NTP
+    configTime("CET-1CEST,M3.5.0/02,M10.5.0/03", "nl.pool.ntp.org");
 
     // set up web server
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
