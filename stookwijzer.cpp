@@ -12,7 +12,7 @@ static StaticJsonDocument < 256 > filter;       // https://arduinojson.org/v6/as
 static WiFiClientSecure client;
 static HTTPClient http;
 
-void stookwijzer_begin(void)
+void stookwijzer_begin(const char *user_agent)
 {
     // allow https communication without actually checking certificates
     client.setInsecure();
@@ -21,6 +21,7 @@ void stookwijzer_begin(void)
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     http.useHTTP10(true);
     http.setReuse(false);
+    http.setUserAgent(user_agent);
 
     // pre-define the streaming JSON filter
     filter["features"][0]["properties"]["pc4"] = true;

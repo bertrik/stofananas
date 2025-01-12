@@ -385,7 +385,7 @@ void setup(void)
     }
 
     // stookwijzer
-    stookwijzer_begin();
+    stookwijzer_begin(espid);
 }
 
 void loop(void)
