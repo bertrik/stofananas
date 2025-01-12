@@ -108,9 +108,6 @@ void fwupdate_serve(AsyncWebServer &server, const char *update_path, const char 
 void fwupdate_loop(void)
 {
     if (_url != "") {
-        ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-        ESPhttpUpdate.setLedPin(LED_BUILTIN, 0);
-        ESPhttpUpdate.rebootOnUpdate(true);
         switch (ESPhttpUpdate.update(wifiClientSecure, _url)) {
         case HTTP_UPDATE_FAILED:
             printf("failed!\n");
