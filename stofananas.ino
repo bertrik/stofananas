@@ -124,7 +124,14 @@ static bool fetch_pm(double latitude, double longitude, const char *item, double
     if (fetch_url("stofradar.nl", 9000, path, response)) {
         // decode
         if (deserializeJson(doc, response) == DeserializationError::Ok) {
-            value = doc[item];
+            JsonArray sensors = doc["sensors"];
+            if (sensors.size() > 0) {
+                // take the value from the closest sensor
+                value = sensors[0][item];
+            } else {
+                // or else fall back to the interpolated value
+                value = doc[item];
+            }
             return true;
         }
     }
@@ -135,6 +142,7 @@ static int do_get(int argc, char *argv[])
 {
     double pm2_5;
     if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
+        printf("pm2.5=%.2f\n", pm2_5);
         set_led(interpolate(pm2_5, pmlevels_original));
     } else {
         printf("fetch_pm failed!\n");
