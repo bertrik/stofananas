@@ -24,6 +24,7 @@ void stookwijzer_begin(WiFiClient &wifiClient, const char *user_agent)
 
     // pre-define the streaming JSON filter
     filter["features"][0]["properties"]["pc4"] = true;
+    filter["features"][0]["properties"]["model_runtime"] = true;
     filter["features"][0]["properties"]["lki"] = true;
     filter["features"][0]["properties"]["wind"] = true;
     filter["features"][0]["properties"]["advies_0"] = true;
@@ -33,7 +34,7 @@ void stookwijzer_begin(WiFiClient &wifiClient, const char *user_agent)
     printf("\n");
 }
 
-bool stookwijzer_get(double latitude, double longitude, int &score)
+bool stookwijzer_get(double latitude, double longitude, JsonDocument & props)
 {
     double delta = 0.00001;
     char url[300];
@@ -53,9 +54,7 @@ bool stookwijzer_get(double latitude, double longitude, int &score)
             DeserializationError error =
                 deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
             printf("%s\n", error.c_str());
-            serializeJsonPretty(doc, Serial);
-            printf("\n");
-            score = doc["features"][0]["properties"]["advies_0"];
+            props.set(doc["features"][0]["properties"]);
             result = true;
         }
         http.end();

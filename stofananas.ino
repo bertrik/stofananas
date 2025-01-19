@@ -51,6 +51,7 @@ static CRGB leds7[7];
 static CRGB color;
 static int num_fetch_failures = 0;
 static float latitude, longitude, accuracy;
+static StaticJsonDocument<200> stook_props;
 static int stook_score;
 static double pm2_5;
 
@@ -272,7 +273,11 @@ static int do_update(int argc, char *argv[])
 static int do_stook(int argc, char *argv[])
 {
     int score;
-    stookwijzer_get(latitude, longitude, score);
+    DynamicJsonDocument props(256);
+    stookwijzer_get(latitude, longitude, props);
+    serializeJsonPretty(props, Serial);
+    printf("\n");
+    score = props["advies_0"];
     return score;
 }
 
@@ -424,7 +429,10 @@ void loop(void)
     static unsigned hour = millis() / 3600000;
     if (hour != hour_last) {
         hour_last = hour;
-        stookwijzer_get(latitude, longitude, stook_score);
+        stookwijzer_get(latitude, longitude, stook_props);
+        serializeJsonPretty(stook_props, Serial);
+        printf("\n");
+        stook_score = stook_props["advies_0"];
     }
 
     // update LED
