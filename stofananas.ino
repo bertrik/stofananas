@@ -12,7 +12,7 @@
 
 #include "LittleFS.h"
 
-#include <FastLED.h>
+#include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 #include <MiniShell.h>
 #include <Arduino.h>
@@ -46,9 +46,9 @@ static MiniShell shell(&Serial);
 static DNSServer dns;
 static char espid[64];
 
-static CRGB leds1[1];
-static CRGB leds7[7];
-static CRGB color;
+static Adafruit_NeoPixel strip1(1, DATA_PIN_1LED, NEO_BGR + NEO_KHZ800);
+static Adafruit_NeoPixel strip7(7, DATA_PIN_7LED, NEO_BGR + NEO_KHZ800);
+static uint32_t last_color;
 static int num_fetch_failures = 0;
 static float latitude, longitude, accuracy;
 static StaticJsonDocument<200> stook_props;
@@ -60,13 +60,13 @@ typedef struct {
     int hue;
 } pmlevel_t;
 
-// see https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg
+// see https://learn.adafruit.com/assets/74094
 static const pmlevel_t pmlevels_original[] = {
-    { 0, 160 },                 // blue
-    { 15, 96 },                 // green
-    { 30, 64 },                 // yellow
+    { 0, 43691 },                 // blue
+    { 15, 21845 },                 // green
+    { 30, 10923 },                 // yellow
     { 60, 0 },                  // red
-    { 120, -32 },               // pink
+    { 120, -10923 },               // pink
     { -1, 0 }                   // END
 };
 
@@ -79,12 +79,21 @@ static const pmlevel_t pmlevels_who[] = {
     { -1, 0 }                   // END
 };
 
-static void set_led(CRGB crgb)
+static void strip_fill(Adafruit_NeoPixel & strip, uint32_t rgb)
+{
+    for (int i = 0; i < strip.numPixels(); i++) {
+        strip.setPixelColor(i, rgb);
+    }
+    strip.show();
+}
+
+static void set_led(uint32_t rgb)
 {
     // remember last color
-    color = crgb;
-    // update on the hardware
-    FastLED.showColor(color);
+    last_color = rgb;
+
+    strip_fill(strip1, rgb);
+    strip_fill(strip7, rgb);
 }
 
 static void show_help(const cmd_t *cmds)
@@ -152,7 +161,7 @@ static int do_get(int argc, char *argv[])
     return 0;
 }
 
-static CRGB interpolate(float pm, const pmlevel_t table[])
+static uint32_t interpolate(float pm, const pmlevel_t table[])
 {
     int hue = 0;
     for (const pmlevel_t * pmlevel = table; pmlevel->pm >= 0; pmlevel++) {
@@ -163,8 +172,8 @@ static CRGB interpolate(float pm, const pmlevel_t table[])
         }
         hue = pmlevel->hue;
     }
-    CRGB rgb = CHSV(hue, 255, 255);
-    printf("RGB=#%02X%02X%02X\n", rgb.r, rgb.g, rgb.b);
+    uint32_t rgb = Adafruit_NeoPixel::ColorHSV(hue, 255, 255);
+    printf("RGB=#%06X\n", rgb);
     return rgb;
 }
 
@@ -319,18 +328,22 @@ static void animate(void)
     int v = 0;
 
     // fade in
+    uint32_t color;
     for (v = 0; v < 255; v++) {
-        set_led(CHSV(h, s, v));
+        color = Adafruit_NeoPixel::ColorHSV(h, s, v);
+        set_led(color);
         delay(1);
     }
     // cycle colours
-    for (h = 0; h < 255; h++) {
-        set_led(CHSV(h, s, v));
-        delay(4);
+    for (h = 0; h < 65536; h += 64) {
+        color = Adafruit_NeoPixel::ColorHSV(h, s, v);
+        set_led(color);
+        delay(1);
     }
     // fade out
     for (v = 255; v >= 0; v--) {
-        set_led(CHSV(h, s, v));
+        color = Adafruit_NeoPixel::ColorHSV(h, s, v);
+        set_led(color);
         delay(1);
     }
 }
@@ -361,17 +374,17 @@ void setup(void)
     savedata.longitude = atof(config_get_value("loc_longitude").c_str());
 
     // config led
-    if (savedata.hasRgbLed) {
-        FastLED.addLeds < WS2812B, DATA_PIN_1LED, RGB > (leds1, 1).setCorrection(TypicalSMD5050);
-        FastLED.addLeds < WS2812B, DATA_PIN_7LED, RGB > (leds7, 7).setCorrection(TypicalSMD5050);
-    } else {
-        FastLED.addLeds < WS2812B, DATA_PIN_1LED, GRB > (leds1, 1).setCorrection(TypicalSMD5050);
-        FastLED.addLeds < WS2812B, DATA_PIN_7LED, GRB > (leds7, 7).setCorrection(TypicalSMD5050);
-    }
+    String ledType = config_get_value("led_type");
+    printf("LED type = %s\n", ledType.c_str());
+    neoPixelType pixelType = Adafruit_NeoPixel::str2order(ledType.c_str());
+    strip1.updateType(pixelType);
+    strip7.updateType(pixelType);
 
     // animate LED then indicate white during config
+    strip1.begin();
+    strip7.begin();
     animate();
-    set_led(CRGB::Gray);
+    set_led(0x111111);
 
     // connect to wifi
     printf("Starting WIFI manager (%s)...\n", WiFi.SSID().c_str());
@@ -423,7 +436,6 @@ void loop(void)
             }
         }
     }
-
     // fetch stookwijzer once per hour
     static unsigned hour_last = -1;
     static unsigned hour = millis() / 3600000;
@@ -434,11 +446,10 @@ void loop(void)
         printf("\n");
         stook_score = stook_props["advies_0"];
     }
-
     // update LED
     if (update_led) {
         update_led = false;
-        CRGB color;
+        uint32_t color;
         String scheme = config_get_value("color_scheme");
         if (scheme == "pm25_org") {
             color = interpolate(pm2_5, pmlevels_original);
@@ -449,26 +460,20 @@ void loop(void)
         if (scheme == "stook") {
             switch (stook_score) {
                 case 0:
-                    color = CRGB::Yellow;
+                    color = 0xFFaa00;   // yellow
                     break;
                 case 1:
-                    color = CRGB::Orange;
+                    color = 0xFF5500;   // orange
                     break;
                 case 2:
-                    color = CRGB::Red;
+                    color = 0xFF0000;   // red
                     break;
                 default:
-                    color = CRGB::Grey;
+                    color = 0x111111;   // grey
                     break;
             }
         }
-        if (num_fetch_failures > 0) {
-            // flash LED when there is an error
-            bool flash = (millis() / 500) % 2;
-            FastLED.showColor(color, flash ? 200 : 255);
-        } else {
-            FastLED.showColor(color);
-        }
+        set_led(color);
     }
 
     // command line processing
