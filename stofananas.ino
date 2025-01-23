@@ -449,7 +449,7 @@ void loop(void)
     // update LED
     if (update_led) {
         update_led = false;
-        uint32_t color;
+        uint32_t color = 0;
         String scheme = config_get_value("color_scheme");
         if (scheme == "pm25_org") {
             color = interpolate(pm2_5, pmlevels_original);
