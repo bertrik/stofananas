@@ -51,7 +51,7 @@ static Adafruit_NeoPixel strip7(7, DATA_PIN_7LED, NEO_BGR + NEO_KHZ800);
 static uint32_t last_color;
 static int num_fetch_failures = 0;
 static float latitude, longitude, accuracy;
-static StaticJsonDocument<200> stook_props;
+static StaticJsonDocument<256> stook_props;
 static int stook_score;
 static double pm2_5;
 
