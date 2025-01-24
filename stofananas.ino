@@ -62,21 +62,21 @@ typedef struct {
 
 // see https://learn.adafruit.com/assets/74094
 static const pmlevel_t pmlevels_original[] = {
-    { 0, 43691 },                 // blue
-    { 15, 21845 },                 // green
-    { 30, 10923 },                 // yellow
-    { 60, 0 },                  // red
-    { 120, -10923 },               // pink
-    { -1, 0 }                   // END
+    { 0, 43691 },       // blue
+    { 15, 21845 },      // green
+    { 30, 10923 },      // yellow
+    { 60, 0 },          // red
+    { 120, -10923 },    // pink
+    { -1, 0 }           // END
 };
 
 static const pmlevel_t pmlevels_who[] = {
-    { 0, 160 },                 // blue
-    { 5, 96 },                 // green
-    { 10, 64 },                 // yellow
-    { 15, 0 },                  // red
-    { 20, -32 },               // pink
-    { -1, 0 }                   // END
+    { 0, 43691 },       // blue
+    { 5, 21845 },       // green
+    { 10, 10923 },      // yellow
+    { 15, 0 },          // red
+    { 20, -10923 },     // pink
+    { -1, 0 }           // END
 };
 
 static void strip_fill(Adafruit_NeoPixel & strip, uint32_t rgb)
