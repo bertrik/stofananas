@@ -446,6 +446,7 @@ void loop(void)
         printf("\n");
         stook_score = stook_props["advies_0"];
     }
+
     // update LED
     if (update_led) {
         update_led = false;
@@ -484,4 +485,12 @@ void loop(void)
 
     // firmware update
     fwupdate_loop();
+
+    // check for configuration changes
+    static int last_version = 0;
+    int version = config_get_version();
+    if (version != last_version) {
+        LittleFS.end();
+        ESP.restart();
+    }
 }
