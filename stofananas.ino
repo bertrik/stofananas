@@ -81,6 +81,12 @@ static const pmlevel_t pmlevels_who[] = {
     { -1, 0 }           // END
 };
 
+static const uint32_t stook_colors[] = {
+    0xFFAA00,   // yellow
+    0xFF5500,   // orange
+    0xFF0000    // red
+};
+
 static void strip_fill(Adafruit_NeoPixel & strip, uint32_t rgb)
 {
     for (int i = 0; i < strip.numPixels(); i++) {
@@ -443,19 +449,10 @@ void loop(void)
             color = interpolate(pm2_5, pmlevels_who);
         }
         if (scheme == "stook") {
-            switch (stook_score) {
-                case 0:
-                    color = 0xFFaa00;   // yellow
-                    break;
-                case 1:
-                    color = 0xFF5500;   // orange
-                    break;
-                case 2:
-                    color = 0xFF0000;   // red
-                    break;
-                default:
-                    color = 0x111111;   // grey
-                    break;
+            if ((stook_score >= 0) && (stook_score < 3)) {
+                color = stook_colors[stook_score];
+            } else {
+                color = 0x111111;
             }
         }
         set_led(color);
