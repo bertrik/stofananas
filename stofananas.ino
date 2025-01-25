@@ -348,6 +348,13 @@ static void animate(void)
     }
 }
 
+static void respond_json(AsyncWebServerRequest *request, JsonDocument &json)
+{
+    AsyncResponseStream* response = request->beginResponseStream("application/json");
+    serializeJson(json, *response);
+    request->send(response);
+}
+
 void setup(void)
 {
     snprintf(espid, sizeof(espid), "esp8266-pmlamp-%06x", ESP.getChipId());
@@ -400,6 +407,7 @@ void setup(void)
     fwupdate_serve(server, "/update", "update.html");
     MDNS.begin("stofananas");
     MDNS.addService("http", "tcp", 80);
+    server.on("/stookwijzer.json", [](AsyncWebServerRequest *request) { respond_json(request, stook_props); });
     server.begin();
 
     // attempt geolocation
