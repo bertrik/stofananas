@@ -21,6 +21,7 @@
 #include "fwupdate.h"
 #include "fsimage.h"
 #include "geolocate.h"
+#include "stofradar.h"
 #include "stookwijzer.h"
 
 #define printf Serial.printf
@@ -52,6 +53,7 @@ static uint32_t last_color;
 static int num_fetch_failures = 0;
 static float latitude, longitude, accuracy;
 static StaticJsonDocument<256> stook_props;
+static StaticJsonDocument<512> stofradar_props;
 static int stook_score;
 static double pm2_5;
 
@@ -105,59 +107,31 @@ static void show_help(const cmd_t *cmds)
 
 static int do_help(int argc, char *argv[]);
 
-static bool fetch_url(const char *host, int port, const char *path, String & response)
-{
-    HTTPClient httpClient;
-    httpClient.begin(wifiClient, host, port, path, false);
-    httpClient.setTimeout(20000);
-    httpClient.setUserAgent(espid);
-
-    printf("> GET http://%s:%d%s\n", host, port, path);
-    int res = httpClient.GET();
-
-    // evaluate result
-    bool result = (res == HTTP_CODE_OK);
-    response = result ? httpClient.getString() : httpClient.errorToString(res);
-    httpClient.end();
-    printf("< %d: %s\n", res, response.c_str());
-    return result;
-}
-
 static bool fetch_pm(double latitude, double longitude, const char *item, double &value)
 {
-    DynamicJsonDocument doc(1024);
-    String response;
-    char path[128];
-
-    // fetch
-    sprintf(path, "/air?lat=%.6f&lon=%.6f", latitude, longitude);
-    if (fetch_url("stofradar.nl", 9000, path, response)) {
-        // decode
-        if (deserializeJson(doc, response) == DeserializationError::Ok) {
-            JsonArray sensors = doc["sensors"];
-            if (sensors.size() > 0) {
-                // take the value from the closest sensor
-                value = sensors[0][item];
-            } else {
-                // or else fall back to the interpolated value
-                value = doc[item];
-            }
-            return true;
+    if (stofradar_get(latitude, longitude, stofradar_props)) {
+        JsonArray sensors = stofradar_props["sensors"];
+        if (sensors.size() > 0) {
+            // take the value from the closest sensor
+            value = sensors[0][item];
+        } else {
+            // or else fall back to the interpolated value
+            value = stofradar_props[item];
         }
+        return true;
     }
     return false;
 }
 
 static int do_get(int argc, char *argv[])
 {
-    double pm2_5;
-    if (fetch_pm(latitude, longitude, "pm2.5", pm2_5)) {
-        printf("pm2.5=%.2f\n", pm2_5);
-        set_led(interpolate(pm2_5, pmlevels_original));
-    } else {
-        printf("fetch_pm failed!\n");
+    double pm25;
+    bool ok = fetch_pm(latitude, longitude, "pm2.5", pm25);
+    if (!ok) {
         return -1;
     }
+    serializeJsonPretty(stofradar_props, Serial);
+    printf("\nPM2.5=%.2f\n", pm25);
     return 0;
 }
 
@@ -407,6 +381,7 @@ void setup(void)
     fwupdate_serve(server, "/update", "update.html");
     MDNS.begin("stofananas");
     MDNS.addService("http", "tcp", 80);
+    server.on("/stofradar.json", [](AsyncWebServerRequest *request) { respond_json(request, stofradar_props); });
     server.on("/stookwijzer.json", [](AsyncWebServerRequest *request) { respond_json(request, stook_props); });
     server.begin();
 
@@ -416,7 +391,8 @@ void setup(void)
         longitude = savedata.longitude;
     }
 
-    // stookwijzer
+    // stofradar & stookwijzer client
+    stofradar_begin(wifiClient, espid);
     stookwijzer_begin(wifiClientSecure, espid);
 }
 
