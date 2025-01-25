@@ -55,7 +55,7 @@ bool stookwijzer_get(double latitude, double longitude, JsonDocument & props)
                 deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
             printf("%s\n", error.c_str());
             props.set(doc["features"][0]["properties"]);
-            result = true;
+            result = (error == DeserializationError::Ok);
         }
         http.end();
     }
