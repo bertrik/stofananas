@@ -19,7 +19,7 @@ void stookwijzer_begin(WiFiClient &wifiClient, const char *user_agent)
     // configure HTTP client: follow redirects, non-chunked mode, disable connection re-use
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     http.useHTTP10(true);
-    http.setReuse(false);
+    http.setTimeout(10000);
     http.setUserAgent(user_agent);
 
     // pre-define the streaming JSON filter
@@ -45,15 +45,11 @@ bool stookwijzer_get(double latitude, double longitude, JsonDocument & props)
 
     bool result = false;
     if (http.begin(*client, url)) {
-        printf("GET %s... ", url);
         int httpCode = http.GET();
-        printf("%d\n", httpCode);
         if (httpCode == HTTP_CODE_OK) {
             DynamicJsonDocument doc(2048);
-            printf("Deserializing from HTTP... ");
             DeserializationError error =
                 deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
-            printf("%s\n", error.c_str());
             props.set(doc["features"][0]["properties"]);
             result = (error == DeserializationError::Ok);
         }
