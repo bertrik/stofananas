@@ -5,11 +5,11 @@
 #include <Arduino.h>
 
 #include <ESP8266HTTPClient.h>
-#include <ESP8266httpUpdate.h>
 
 #include "fwupdate.h"
 #include "fwversion.h"
 
+static HTTPClient http;
 static FS *_fs;
 static WiFiClient *_client;
 static String _update_path;
@@ -17,7 +17,6 @@ static String _update_page;
 static String _url = "";
 
 static unsigned long update_started = 0;
-static int last_chunk = 0;
 
 #define printf Serial.printf
 
@@ -26,11 +25,10 @@ void fwupdate_begin(FS & fs, WiFiClient &wifiClient)
     _fs = &fs;
     _client = &wifiClient;
 
-    ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    ESPhttpUpdate.setLedPin(LED_BUILTIN, 0);
-    ESPhttpUpdate.rebootOnUpdate(true);
-
     Update.runAsync(true);
+
+    http.useHTTP10(true); // disable chunked stream
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 }
 
 static String template_processor(const String & string)
@@ -47,7 +45,7 @@ static void handleGet(AsyncWebServerRequest *request)
 }
 
 /*
- * Called either at the start of HTTP update, or at the end of file update.
+ * Called either at the start of HTTP update, or at the end of POST file update.
  */
 static void handleRequest(AsyncWebServerRequest *request)
 {
@@ -56,7 +54,12 @@ static void handleRequest(AsyncWebServerRequest *request)
     }
     String type = request->getParam("type", true)->value();
     if (type == "http") {
+        // start of http remote file update
         _url = request->getParam("url", true)->value();
+    }
+    if (type == "post") {
+        // end of POST local file update
+        ESP.restart();
     }
     request->redirect(_update_path);
 }
@@ -64,23 +67,16 @@ static void handleRequest(AsyncWebServerRequest *request)
 static void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
 {
     if (index == 0) {
-        last_chunk = 0;
-        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
         update_started = millis();
-        if (!Update.begin(maxSketchSpace, U_FLASH)) {
+        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+        if (!Update.begin(maxSketchSpace, U_FLASH, LED_BUILTIN)) {
             printf("Update.begin() failed!\n");
+            return;
         }
         request->client()->setNoDelay(true);
     }
 
     Update.write(data, len);
-    int chunk = Update.progress() / 4096;
-    digitalWrite(LED_BUILTIN, chunk & 1);
-    if (chunk != last_chunk) {
-        printf(".");
-        last_chunk = chunk;
-    }
-
     if (final) {
         Update.end(true);
         unsigned long duration = millis() - update_started;
@@ -102,25 +98,49 @@ void fwupdate_serve(AsyncWebServer &server, const char *update_path, const char 
     // register ourselves with the server
     server.on(update_path, HTTP_GET, handleGet);
     server.on(update_path, HTTP_POST, handleRequest, handleUpload);
-    server.on("/reboot", HTTP_GET, handleReboot);
+    server.on("/reboot", HTTP_POST, handleReboot);
+}
+
+static bool fwupdate_http(String &url)
+{
+    bool result = false;
+    if (http.begin(*_client, url)) {
+        printf("GET %s ... ", url.c_str());
+        int httpCode = http.GET();
+        printf("%d\n", httpCode);
+        if (httpCode == HTTP_CODE_OK) {
+            int contentLength = http.getSize();
+            printf("Update.begin(%d) ... ", contentLength);
+            if (Update.begin(contentLength, U_FLASH, LED_BUILTIN, 0)) {
+                printf("OK\n");
+                printf("Update.writeStream() ...");
+                size_t written = Update.writeStream(http.getStream());
+                printf("%d written\n", written);
+
+                printf("Update.end() ... ");
+                if (Update.end(true)) {
+                    printf("OK\n");
+                    result = true;
+                }
+            }
+        }
+        http.end();
+    }
+    if (!result) {
+        printf("FAIL\n");
+    }
+    return result;
 }
 
 void fwupdate_loop(void)
 {
     if (_url != "") {
-        switch (ESPhttpUpdate.update(*_client, _url)) {
-        case HTTP_UPDATE_FAILED:
-            printf("failed!\n");
-            break;
-        case HTTP_UPDATE_NO_UPDATES:
-            printf("no update!\n");
-            break;
-        case HTTP_UPDATE_OK:
-            printf("OK!\n");
-            break;
-        default:
-            break;
-        }
+        update_started = millis();
+        fwupdate_http(_url);
+        unsigned long duration = millis() - update_started;
+        printf("done, took %ld ms\n", duration);
+
+        ESP.restart();
         _url = "";
     }
 }

@@ -33,8 +33,15 @@
                 </label>
             </div>
             <div class="row">
-                <button type="submit" id="update" name="type" value="file">Update</button>
-                <button type="button" id="reboot" onclick="fetch('/reboot')">Reboot</button>
+                <button type="submit" id="update" name="type" value="post">Update</button>
+            </div>
+        </fieldset>
+    </form>
+    <form action="/reboot" method="post">
+        <fieldset>
+            <legend>Device management</legend>
+            <div class="row">
+                <button type="submit" id="reboot">Reboot</button>
             </div>
         </fieldset>
     </form>

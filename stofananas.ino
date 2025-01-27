@@ -219,46 +219,6 @@ static int do_unpack(int argc, char *argv[])
     return 0;
 }
 
-static int do_update(int argc, char *argv[])
-{
-    int result = 0;
-    const char *url = (argc > 1) ? argv[1] : "https://github.com/bertrik/stofananas/releases/latest/download/firmware.bin";
-
-    HTTPClient http;
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    if (http.begin(wifiClientSecure, url)) {
-        printf("GET %s ... ", url);
-        int httpCode = http.GET();
-        printf("%d\n", httpCode);
-        if (httpCode == HTTP_CODE_OK) {
-            int contentLength = http.getSize();
-            printf("Update.begin(%d) ... ", contentLength);
-            if (Update.begin(contentLength, U_FLASH, LED_BUILTIN, 0)) {
-                printf("OK\n");
-                printf("Update.writeStream() ...");
-                size_t written = Update.writeStream(http.getStream());
-                printf("%d written\n", written);
-
-                printf("Update.end() ... ");
-                if (Update.end(true)) {
-                    printf("OK\n");
-                } else {
-                    printf("FAIL\n");
-                    result = -1;
-                }
-            } else {
-                printf("FAIL\n");
-                result = -1;
-            }
-        }
-        http.end();
-    } else {
-        printf("http.begin() failed!\n");
-        result = -3;
-    }
-    return result;
-}
-
 static int do_stook(int argc, char *argv[])
 {
     int score;
@@ -289,7 +249,6 @@ const cmd_t commands[] = {
     { "error", do_error, "[fetch] [decode] Simulate a fetch/decode error" },
     { "led", do_led, "<RRGGBB> Set the LED to a specific value (hex)" },
     { "unpack", do_unpack, "<force> Unpack files" },
-    { "update", do_update, "[url] Update firmware from URL" },
     { "stook", do_stook, "Interact with stookwijzer" },
     { "date", do_datetime, "Show date/time" },
     { NULL, NULL, NULL }
